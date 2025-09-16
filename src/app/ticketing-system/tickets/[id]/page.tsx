@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Comments from "@/components/Comments";
@@ -13,6 +13,8 @@ type Ticket = {
   description: string;
   category: string;
   status: string;
+  created_at?: string;
+  updated_at?: string;
   requester_email: string;
   attachments: string[] | null;
 };
@@ -38,7 +40,7 @@ export default function TicketPage() {
   }, []);
 
   // Load ticket details from Supabase
-  const fetchTicket = async () => {
+  const fetchTicket = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("tickets")
@@ -54,20 +56,29 @@ export default function TicketPage() {
     }
 
     setLoading(false);
-  };
+  }, [id]);
 
   useEffect(() => {
     if (id) fetchTicket();
-  }, [id]);
+  }, [id, fetchTicket]);
 
   if (loading) return <p>Loading...</p>;
   if (!ticket) return <p>Ticket not found.</p>;
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">{ticket.title}</h1>
+      <h1 className="text-2xl font-bold mb-1">{ticket.title}</h1>
+      <div className="text-sm text-gray-600 mb-3">
+        {ticket.created_at ? (
+          <span className="mr-3">
+            Created: {new Date(ticket.created_at).toLocaleString()}
+          </span>
+        ) : null}
+        {ticket.updated_at ? (
+          <span>Updated: {new Date(ticket.updated_at).toLocaleString()}</span>
+        ) : null}
+      </div>
       <p className="mb-2">{ticket.description}</p>
-
       {/* Show dropdown for IT users, plain text for others */}
       {IT_EMAILS.includes(userEmail || "") ? (
         <div className="mb-4">
@@ -77,21 +88,33 @@ export default function TicketPage() {
             value={ticket.status}
             onChange={async (e) => {
               const newStatus = e.target.value;
-              const { error } = await supabase
-                .from("tickets")
-                .update({ status: newStatus })
-                .eq("id", ticket.id);
+              try {
+                const res = await fetch("/api/tickets/status", {
+                  method: "PATCH",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({
+                    ticketId: ticket.id,
+                    status: newStatus,
+                    operator: userEmail,
+                  }),
+                });
 
-              if (!error) {
+                if (!res.ok) {
+                  const body = await res.json().catch(() => ({}));
+                  throw new Error(body?.error || "Failed to update status");
+                }
+
                 setTicket((prev) => prev && { ...prev, status: newStatus });
-              } else {
-                alert("Failed to update status: " + error.message);
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                alert("Failed to update status: " + msg);
               }
             }}
           >
             <option value="new">New</option>
             <option value="in_progress">In progress</option>
             <option value="resolved">Resolved</option>
+            <option value="closed">Closed</option>
           </select>
         </div>
       ) : (
@@ -99,11 +122,9 @@ export default function TicketPage() {
           Category: {ticket.category} · Status: {ticket.status}
         </p>
       )}
-
       <p className="text-sm text-gray-500 mb-4">
         Created by: {ticket.requester_email}
       </p>
-
       {/* Attachments */}
       {ticket.attachments && ticket.attachments.length > 0 && (
         <div className="mb-4">
@@ -124,10 +145,8 @@ export default function TicketPage() {
           </ul>
         </div>
       )}
-
       {/* Comments section */}
-      <Comments ticketId={ticket.id} />
-
+      <Comments ticketId={ticket.id} requesterEmail={ticket.requester_email} />
       {/* Form to add a new comment */}
       <CommentForm ticketId={ticket.id} /> {/* ← added */}
     </div>

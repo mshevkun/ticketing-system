@@ -32,7 +32,7 @@ export default function TicketingSystemPage() {
     await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        redirectTo: "http://localhost:3000/ticketing-system", // your redirect
+        redirectTo: "http://localhost:3000/ticketing-system",
       },
     });
   };
@@ -49,7 +49,7 @@ export default function TicketingSystemPage() {
       {!userEmail ? (
         <button
           onClick={loginWithMicrosoft}
-          className="px-4 py-2 bg-blue-600 text-white rounded"
+          className="px-4 py-2 bg-blue-600 text-white rounded cursor-button"
         >
           Login with Microsoft
         </button>
@@ -65,7 +65,7 @@ export default function TicketingSystemPage() {
 
           <button
             onClick={logout}
-            className="px-4 py-2 bg-gray-600 text-white rounded"
+            className="px-4 py-2 bg-gray-600 text-white rounded cursor-button"
           >
             Logout
           </button>

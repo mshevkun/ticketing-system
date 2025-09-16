@@ -35,7 +35,9 @@ export default function CommentForm({ ticketId }: { ticketId: string }) {
       alert("Failed to add comment.");
     } else {
       // notify Comments.tsx to refetch
-      window.dispatchEvent(new CustomEvent("comment:added", { detail: ticketId }));
+      window.dispatchEvent(
+        new CustomEvent("comment:added", { detail: ticketId })
+      );
       setContent("");
     }
 
@@ -43,18 +45,18 @@ export default function CommentForm({ ticketId }: { ticketId: string }) {
   };
 
   return (
-    <div className="mt-4 flex gap-2">
+    <div className="mt-6 flex items-center gap-3 max-w-3xl">
       <input
         type="text"
         placeholder="Write a comment..."
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="flex-1 border rounded px-3 py-2"
+        className="flex-1 border border-gray-300 rounded px-4 py-2 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
       />
       <button
         onClick={addComment}
         disabled={sending}
-        className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+        className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:opacity-50 shadow cursor-button"
       >
         {sending ? "Sending..." : "Send"}
       </button>

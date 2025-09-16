@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,47 +48,70 @@ export default function TicketForm() {
     getUser();
   }, [setValue]);
 
-  const onSubmit = async (values: FormValues) => {
-    try {
-      setSending(true);
+  const attachmentsRef = useRef<HTMLInputElement | null>(null);
 
+  const onSubmit = async (values: FormValues) => {
+    setSending(true);
+    try {
       const formData = new FormData();
       formData.append("title", values.title);
       formData.append("description", values.description);
       formData.append("category", values.category);
       formData.append("requester_email", userEmail); // always use logged user email
 
-      const input = document.getElementById(
-        "attachments"
-      ) as HTMLInputElement | null;
-      if (input?.files)
+      const input = attachmentsRef.current;
+      if (input?.files) {
         Array.from(input.files).forEach((f) =>
           formData.append("attachments", f)
         );
+      }
 
       // Optimistic update
       const optimisticId = crypto.randomUUID();
       setCreatedId(optimisticId);
 
-      const res = await fetch("/api/tickets", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert("Error: " + (data.error?.message || "Failed to create ticket"));
+      type CreateTicketResponse =
+        | { ticket_id: string; uploaded?: number; uploadErrors?: unknown }
+        | { error: { message?: string } };
+      let res: Response;
+      let data: CreateTicketResponse;
+      try {
+        res = await fetch("/api/tickets", {
+          method: "POST",
+          body: formData,
+        });
+        data = await res.json();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        alert("Network error: " + msg);
         setCreatedId(null);
         return;
       }
 
-      setCreatedId(data.ticket_id);
-      reset({ title: "", description: "", category: "", requester_email: userEmail });
+      if (!res.ok) {
+        // data is expected to have an error shape here
+        const errMsg =
+          (data as { error?: { message?: string } })?.error?.message ||
+          "Failed to create ticket";
+        alert("Error: " + errMsg);
+        setCreatedId(null);
+        return;
+      }
+
+      // success shape
+      const success = data as { ticket_id: string };
+      setCreatedId(success.ticket_id);
+      reset({
+        title: "",
+        description: "",
+        category: "",
+        requester_email: userEmail,
+      });
       if (input) input.value = "";
 
       // Notify TicketList
       window.dispatchEvent(
-        new CustomEvent("ticket:created", { detail: data.ticket_id })
+        new CustomEvent("ticket:created", { detail: success.ticket_id })
       );
     } finally {
       setSending(false);
@@ -100,8 +123,11 @@ export default function TicketForm() {
       <h2 className="text-xl font-semibold mb-4">Create IT Ticket</h2>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <div>
-          <label className="block text-sm mb-1">Title</label>
+          <label htmlFor="title" className="block text-sm mb-1">
+            Title
+          </label>
           <input
+            id="title"
             className="w-full border rounded px-3 py-2"
             {...register("title")}
           />
@@ -110,21 +136,25 @@ export default function TicketForm() {
           )}
         </div>
         <div>
-          <label className="block text-sm mb-1">Description</label>
+          <label htmlFor="description" className="block text-sm mb-1">
+            Description
+          </label>
           <textarea
+            id="description"
             className="w-full border rounded px-3 py-2"
             rows={4}
             {...register("description")}
           />
           {errors.description && (
-            <p className="text-sm text-red-600">
-              {errors.description.message}
-            </p>
+            <p className="text-sm text-red-600">{errors.description.message}</p>
           )}
         </div>
         <div>
-          <label className="block text-sm mb-1">Category</label>
+          <label htmlFor="category" className="block text-sm mb-1">
+            Category
+          </label>
           <input
+            id="category"
             className="w-full border rounded px-3 py-2"
             placeholder="Printers, Microsoft 365, Hardware..."
             {...register("category")}
@@ -136,8 +166,11 @@ export default function TicketForm() {
 
         {/* Work email shown but disabled */}
         <div>
-          <label className="block text-sm mb-1">Your work email</label>
+          <label htmlFor="work-email" className="block text-sm mb-1">
+            Your work email
+          </label>
           <input
+            id="work-email"
             className="w-full border rounded px-3 py-2 bg-gray-100"
             type="email"
             value={userEmail}
@@ -150,13 +183,21 @@ export default function TicketForm() {
         <input type="hidden" {...register("requester_email")} />
 
         <div>
-          <label className="block text-sm mb-1">Attachments (optional)</label>
-          <input id="attachments" className="w-full" type="file" multiple />
+          <label htmlFor="attachments" className="block text-sm mb-1">
+            Attachments (optional)
+          </label>
+          <input
+            id="attachments"
+            ref={attachmentsRef}
+            className="w-full"
+            type="file"
+            multiple
+          />
         </div>
         <button
           type="submit"
           disabled={sending}
-          className="px-4 py-2 rounded bg-black text-white disabled:opacity-50"
+          className="px-4 py-2 rounded bg-black text-white disabled:opacity-50 cursor-button"
         >
           {sending ? "Creating..." : "Create ticket"}
         </button>

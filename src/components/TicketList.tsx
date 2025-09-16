@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+
+const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
 
 type Ticket = {
   id: string;
@@ -18,11 +21,6 @@ export default function TicketList() {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  const IT_EMAILS = [
-    "cmansilla@people-usa.org",
-    "mshevkun@people-usa.org",
-  ];
-
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -31,7 +29,7 @@ export default function TicketList() {
     getUser();
   }, []);
 
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     if (!userEmail) return;
 
     setLoading(true);
@@ -54,17 +52,17 @@ export default function TicketList() {
     }
 
     setLoading(false);
-  };
+  }, [userEmail]);
 
   useEffect(() => {
     if (userEmail) fetchTickets();
-  }, [userEmail]);
+  }, [userEmail, fetchTickets]);
 
   useEffect(() => {
     const handler = () => fetchTickets();
     window.addEventListener("ticket:created", handler);
     return () => window.removeEventListener("ticket:created", handler);
-  }, [userEmail]);
+  }, [userEmail, fetchTickets]);
 
   if (loading) return <p>Loading tickets...</p>;
 
@@ -80,12 +78,12 @@ export default function TicketList() {
               key={t.id}
               className="border rounded p-3 hover:bg-gray-50 transition"
             >
-              <a
-                href={`/ticketing-system/${t.id}`}
+              <Link
+                href={`/ticketing-system/tickets/${t.id}`}
                 className="block text-blue-600 hover:underline"
               >
                 {t.title}
-              </a>
+              </Link>
               <p className="text-sm text-gray-700">{t.description}</p>
               <p className="text-xs text-gray-500">
                 {t.category} · {t.status} · {t.requester_email}
