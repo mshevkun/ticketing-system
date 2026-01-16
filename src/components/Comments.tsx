@@ -78,16 +78,57 @@ export default function Comments({
 
   // Note: inline addComment UI removed; use CommentForm component on the page.
 
-  if (loading) return <p>Loading comments...</p>;
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMinutes < 1) return "Just now";
+    if (diffMinutes === 1) return "1 minute ago";
+    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    if (diffHours === 1) return "1 hour ago";
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
+  };
+
+  const getInitials = (email: string) => {
+    return email.charAt(0).toUpperCase();
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-20 bg-gray-200 rounded-lg"></div>
+        <div className="h-20 bg-gray-200 rounded-lg"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mt-6">
-      <h3 className="text-lg font-semibold mb-2">Comments</h3>
+    <div>
+      <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+        💬 Conversation{" "}
+        {comments.length > 0 && (
+          <span className="text-xs sm:text-sm font-normal text-gray-500">
+            ({comments.length} {comments.length === 1 ? "message" : "messages"})
+          </span>
+        )}
+      </h3>
 
       {comments.length === 0 ? (
-        <p>No comments yet.</p>
+        <div className="text-center py-6 sm:py-8 text-gray-500">
+          <div className="text-2xl sm:text-3xl mb-2">💭</div>
+          <p className="text-xs sm:text-sm">
+            No messages yet. Start the conversation!
+          </p>
+        </div>
       ) : (
-        <ul ref={containerRef} className="space-y-3">
+        <ul ref={containerRef} className="space-y-3 sm:space-y-4">
           {comments.map((c) => {
             const isRequester = requesterEmail
               ? c.author_email === requesterEmail
@@ -95,41 +136,52 @@ export default function Comments({
             const isAdmin = IT_EMAILS.includes(c.author_email);
             // requester messages on the left, admin messages on the right
             const justifyClass = isAdmin ? "justify-end" : "justify-start";
-            // requester: light blue; admin: orange; others: gray
+            // Outline style: white background with colored borders
             const bubbleClass = isAdmin
-              ? "bg-orange-500 text-white rounded-xl px-5 py-3 shadow-sm max-w-xl"
+              ? "bg-white text-gray-900 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm border-2 border-orange-300 max-w-full sm:max-w-xl"
               : isRequester
-              ? "bg-blue-50 text-blue-900 rounded-xl px-5 py-3 shadow-sm border border-blue-100 max-w-xl"
-              : "bg-gray-50 text-gray-900 rounded-xl px-5 py-3 shadow-sm border border-gray-100 max-w-xl";
+              ? "bg-white text-gray-900 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm border-2 border-blue-300 max-w-full sm:max-w-xl"
+              : "bg-white text-gray-900 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm border border-gray-300 max-w-full sm:max-w-xl";
 
             return (
-              <li key={c.id} className="">
-                <div className={`flex ${justifyClass}`}>
-                  <div className={bubbleClass}>
-                    <p className="text-xs text-gray-500 mb-2">
-                      <span className="font-medium text-[0.75rem] text-gray-700">
-                        {c.author_email}
-                      </span>
-                      {currentUserEmail === c.author_email ? (
-                        <span className="ml-2 text-sm text-gray-500">
-                          (You)
+              <li key={c.id}>
+                <div className={`flex ${justifyClass} items-start gap-3`}>
+                  {!isAdmin && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center text-sm font-medium text-gray-700">
+                      {getInitials(c.author_email)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <div className={bubbleClass}>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-700">
+                          {isAdmin ? "🔧 IT Staff" : c.author_email}
                         </span>
-                      ) : null}
-                      <span className="mx-2 text-gray-300">•</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(c.created_at).toLocaleString()}
-                      </span>
-                    </p>
-                    <p className="text-sm leading-snug">{c.content}</p>
+                        {currentUserEmail === c.author_email && (
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 border border-gray-300 rounded-full">
+                            You
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500">
+                          {formatTime(c.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-900">
+                        {c.content}
+                      </p>
+                    </div>
                   </div>
+                  {isAdmin && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 border-2 border-orange-300 flex items-center justify-center text-sm font-medium text-gray-700">
+                      {getInitials(c.author_email)}
+                    </div>
+                  )}
                 </div>
               </li>
             );
           })}
         </ul>
       )}
-
-      {/* Inline comment input removed — use CommentForm component on the page */}
     </div>
   );
 }
