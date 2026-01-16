@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type Comment = {
@@ -10,14 +10,22 @@ type Comment = {
   created_at: string;
 };
 
-export default function Comments({ ticketId }: { ticketId: string }) {
+const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
+
+export default function Comments({
+  ticketId,
+  requesterEmail,
+}: {
+  ticketId: string;
+  requesterEmail?: string;
+}) {
   const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sending, setSending] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const containerRef = useRef<HTMLUListElement | null>(null);
 
   // Load comments from Supabase
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     const { data, error } = await supabase
       .from("comments")
       .select("id, author_email, content, created_at")
@@ -30,99 +38,150 @@ export default function Comments({ ticketId }: { ticketId: string }) {
       setComments(data || []);
     }
     setLoading(false);
-  };
+  }, [ticketId]);
 
   useEffect(() => {
     fetchComments();
-  }, [ticketId]);
+  }, [ticketId, fetchComments]);
 
-  // Add a new comment
-  const addComment = async () => {
-    if (!newComment.trim()) return;
-
-    setSending(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user?.email) {
-      alert("You must be logged in to comment.");
-      setSending(false);
-      return;
-    }
-
-    // Optimistically add comment to UI
-    const optimisticComment: Comment = {
-      id: crypto.randomUUID(),
-      author_email: user.email,
-      content: newComment,
-      created_at: new Date().toISOString(),
+  // Get current user email for "You" label
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setCurrentUserEmail(data.user?.email ?? null);
     };
-    setComments((prev) => [...prev, optimisticComment]);
-    setNewComment("");
+    getUser();
+  }, []);
 
-    // Save comment to Supabase
-    const { error } = await supabase.from("comments").insert([
-      {
-        ticket_id: ticketId,
-        author_email: user.email,
-        content: optimisticComment.content,
-      },
-    ]);
+  // Listen for comment added events to refresh
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || detail === ticketId) fetchComments();
+    };
+    window.addEventListener("comment:added", handler);
+    return () => window.removeEventListener("comment:added", handler);
+  }, [ticketId, fetchComments]);
 
-    if (error) {
-      console.error("Error adding comment:", error.message);
-      // Rollback if failed
-      setComments((prev) => prev.filter((c) => c.id !== optimisticComment.id));
-      alert("Failed to add comment: " + error.message);
-    } else {
-      // Refetch to sync IDs from DB
-      fetchComments();
-    }
+  // Auto-scroll to bottom when comments change
+  useEffect(() => {
+    if (!containerRef.current) return;
+    // Small timeout to wait for DOM update
+    const t = setTimeout(() => {
+      containerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [comments]);
 
-    setSending(false);
+  // Note: inline addComment UI removed; use CommentForm component on the page.
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMinutes < 1) return "Just now";
+    if (diffMinutes === 1) return "1 minute ago";
+    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    if (diffHours === 1) return "1 hour ago";
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString();
   };
 
-  if (loading) return <p>Loading comments...</p>;
+  const getInitials = (email: string) => {
+    return email.charAt(0).toUpperCase();
+  };
+
+  if (loading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-20 bg-gray-200 rounded-lg"></div>
+        <div className="h-20 bg-gray-200 rounded-lg"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="mt-6">
-      <h3 className="text-lg font-semibold mb-2">Comments</h3>
+    <div>
+      <h3 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+        💬 Conversation{" "}
+        {comments.length > 0 && (
+          <span className="text-xs sm:text-sm font-normal text-gray-500">
+            ({comments.length} {comments.length === 1 ? "message" : "messages"})
+          </span>
+        )}
+      </h3>
 
       {comments.length === 0 ? (
-        <p>No comments yet.</p>
+        <div className="text-center py-6 sm:py-8 text-gray-500">
+          <div className="text-2xl sm:text-3xl mb-2">💭</div>
+          <p className="text-xs sm:text-sm">
+            No messages yet. Start the conversation!
+          </p>
+        </div>
       ) : (
-        <ul className="space-y-3">
-          {comments.map((c) => (
-            <li key={c.id} className="border rounded p-3">
-              <p className="text-sm text-gray-600 mb-1">
-                {c.author_email} —{" "}
-                {new Date(c.created_at).toLocaleString()}
-              </p>
-              <p>{c.content}</p>
-            </li>
-          ))}
+        <ul ref={containerRef} className="space-y-3 sm:space-y-4">
+          {comments.map((c) => {
+            const isRequester = requesterEmail
+              ? c.author_email === requesterEmail
+              : false;
+            const isAdmin = IT_EMAILS.includes(c.author_email);
+            // requester messages on the left, admin messages on the right
+            const justifyClass = isAdmin ? "justify-end" : "justify-start";
+            // Outline style: white background with colored borders
+            const bubbleClass = isAdmin
+              ? "bg-white text-gray-900 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm border-2 border-orange-300 max-w-full sm:max-w-xl"
+              : isRequester
+              ? "bg-white text-gray-900 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm border-2 border-blue-300 max-w-full sm:max-w-xl"
+              : "bg-white text-gray-900 rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm border border-gray-300 max-w-full sm:max-w-xl";
+
+            return (
+              <li key={c.id}>
+                <div className={`flex ${justifyClass} items-start gap-3`}>
+                  {!isAdmin && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 border-2 border-gray-300 flex items-center justify-center text-sm font-medium text-gray-700">
+                      {getInitials(c.author_email)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <div className={bubbleClass}>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-700">
+                          {isAdmin ? "🔧 IT Staff" : c.author_email}
+                        </span>
+                        {currentUserEmail === c.author_email && (
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 border border-gray-300 rounded-full">
+                            You
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-500">
+                          {formatTime(c.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-900">
+                        {c.content}
+                      </p>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 border-2 border-orange-300 flex items-center justify-center text-sm font-medium text-gray-700">
+                      {getInitials(c.author_email)}
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
-
-      {/* Form to add comment */}
-      <div className="mt-4 flex gap-2">
-        <input
-          type="text"
-          placeholder="Write a comment..."
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          className="flex-1 border rounded px-3 py-2"
-        />
-        <button
-          onClick={addComment}
-          disabled={sending}
-          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-        >
-          {sending ? "Sending..." : "Send"}
-        </button>
-      </div>
     </div>
   );
 }
