@@ -155,7 +155,9 @@ export default function Comments({
                     <div className={bubbleClass}>
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-xs font-semibold text-gray-700">
-                          {isAdmin ? "🔧 IT Staff" : c.author_email}
+                          {isAdmin
+                            ? `🔧 IT Staff (${c.author_email})`
+                            : c.author_email}
                         </span>
                         {currentUserEmail === c.author_email && (
                           <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 border border-gray-300 rounded-full">
