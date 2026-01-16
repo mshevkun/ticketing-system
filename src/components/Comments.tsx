@@ -151,7 +151,7 @@ export default function Comments({
                       {getInitials(c.author_email)}
                     </div>
                   )}
-                  <div className="flex-1">
+                  <div className={isAdmin ? "" : "flex-1"}>
                     <div className={bubbleClass}>
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="text-xs font-semibold text-gray-700">

@@ -261,7 +261,7 @@ export default function TicketForm() {
         <div>
           <label
             htmlFor="attachments"
-            className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+            className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2 cursor-pointer"
           >
             📎 Attachments{" "}
             <span className="text-gray-500 font-normal">(optional)</span>
@@ -270,7 +270,7 @@ export default function TicketForm() {
             id="attachments"
             ref={attachmentsRef}
             onChange={handleFileChange}
-            className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+            className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:cursor-pointer cursor-pointer"
             type="file"
             multiple
             accept="image/*,.pdf,.doc,.docx,.txt"
