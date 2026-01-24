@@ -116,12 +116,12 @@ export default function TicketingSystemPage() {
               </button>
 
               <div className="mt-6">
-                <div className="relative w-full aspect-[16/9] overflow-hidden rounded-lg bg-gray-50">
+                <div className="relative w-full min-h-[300px] overflow-hidden rounded-lg">
                   <Image
                     src="/images/associate.jpg"
                     alt="Associate"
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     sizes="(max-width: 640px) 100vw, 420px"
                     unoptimized
                   />
