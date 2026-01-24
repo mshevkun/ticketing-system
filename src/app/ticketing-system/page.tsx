@@ -99,7 +99,7 @@ export default function TicketingSystemPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 flex-1 flex items-center justify-center">
         {!userEmail ? (
-          <div className="max-w-md mx-auto">
+          <div className="max-w-xl mx-auto">
             <div className="bg-white border border-gray-200 rounded-xl p-6 sm:p-8 shadow-sm text-center">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 Welcome to IT Ticketing System
