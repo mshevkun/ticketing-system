@@ -4,6 +4,7 @@ import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 export default function TicketingSystemPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -49,16 +50,24 @@ export default function TicketingSystemPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">
-              🎫 People USA IT Ticketing
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate flex items-center gap-2">
+              <Image 
+                src="/icons/people-usa-icon.png" 
+                alt="People USA" 
+                width={32} 
+                height={32}
+                className="flex-shrink-0"
+                unoptimized
+              />
+              People USA IT Ticketing System
             </h1>
             <p className="text-xs sm:text-sm text-gray-600">
-              Internal help desk system
+              Internal Help Desk System
             </p>
           </div>
           {userEmail && (
@@ -88,11 +97,10 @@ export default function TicketingSystemPage() {
       </header>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 flex-1 flex items-center justify-center">
         {!userEmail ? (
-          <div className="max-w-md mx-auto mt-8 sm:mt-16">
+          <div className="max-w-md mx-auto">
             <div className="bg-white border border-gray-200 rounded-xl p-6 sm:p-8 shadow-sm text-center">
-              <div className="text-4xl sm:text-5xl mb-4">🎫</div>
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 Welcome to IT Ticketing System
               </h2>
@@ -106,6 +114,19 @@ export default function TicketingSystemPage() {
               >
                 🔐 Login with Microsoft 365
               </button>
+
+              <div className="mt-6">
+                <div className="relative w-full aspect-[16/9] overflow-hidden rounded-lg bg-gray-50">
+                  <Image
+                    src="/images/associate.jpg"
+                    alt="Associate"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 100vw, 420px"
+                    unoptimized
+                  />
+                </div>
+              </div>
             </div>
           </div>
         ) : (

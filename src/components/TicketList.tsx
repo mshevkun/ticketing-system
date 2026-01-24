@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import StatusBadge from "./StatusBadge";
 
@@ -104,7 +105,15 @@ export default function TicketList() {
 
       {tickets.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg p-8 sm:p-12 text-center shadow-sm mx-4 sm:mx-0">
-          <div className="text-3xl sm:text-4xl mb-4">🎫</div>
+          <div className="flex justify-center mb-4">
+            <Image 
+              src="/icons/people-usa-icon.png" 
+              alt="People USA" 
+              width={64} 
+              height={64}
+              className="w-12 h-12 sm:w-16 sm:h-16"
+            />
+          </div>
           <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No tickets found</h3>
           <p className="text-xs sm:text-sm text-gray-600">
             {IT_EMAILS.includes(userEmail || "")
