@@ -53,30 +53,35 @@ export default function TicketingSystemPage() {
     <main className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate flex items-center gap-2">
+            <h1 className="text-base sm:text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-1.5 sm:gap-2">
               <Image 
                 src="/icons/people-usa-icon.png" 
                 alt="People USA" 
-                width={32} 
-                height={32}
-                className="flex-shrink-0"
+                width={24}
+                height={24}
+                className="flex-shrink-0 sm:w-8 sm:h-8"
                 unoptimized
               />
-              People USA IT Ticketing System
+              <span className="hidden sm:inline">People USA IT Ticketing System</span>
+              <span className="sm:hidden">IT Ticketing System</span>
             </h1>
-            <p className="text-xs sm:text-sm text-gray-600">
-              Internal Help Desk System
+            <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mt-0.5">
+              <span className="hidden sm:inline">Internal Help Desk System</span>
+              <span className="sm:hidden">Help Desk</span>
             </p>
           </div>
           {userEmail && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-              <div className="text-left sm:text-right">
-                <p className="text-xs sm:text-sm font-medium text-gray-900 truncate max-w-[200px] sm:max-w-none">
-                  Welcome, {userEmail}
+            <div className="flex flex-row items-center gap-2 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="text-left sm:text-right min-w-0 flex-1 sm:flex-none">
+                <p className="text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 truncate">
+                  <span className="hidden sm:inline">Welcome, </span>
+                  <span className="sm:hidden">Hi, </span>
+                  <span className="hidden md:inline">{userEmail}</span>
+                  <span className="md:hidden">{userEmail.split('@')[0]}</span>
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-[10px] sm:text-xs text-gray-500">
                   {[
                     "cmansilla@people-usa.org",
                     "mshevkun@people-usa.org",
@@ -87,7 +92,7 @@ export default function TicketingSystemPage() {
               </div>
               <button
                 onClick={logout}
-                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors text-xs sm:text-sm font-medium cursor-pointer w-full sm:w-auto"
+                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors text-[10px] sm:text-xs md:text-sm font-medium cursor-pointer flex-shrink-0"
               >
                 Logout
               </button>
