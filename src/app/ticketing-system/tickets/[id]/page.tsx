@@ -17,6 +17,8 @@ type Ticket = {
   created_at?: string;
   updated_at?: string;
   requester_email: string;
+  department_program?: string;
+  supervisor?: string;
   attachments: string[] | null;
 };
 
@@ -248,6 +250,22 @@ export default function TicketPage() {
           </div>
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+              Department / Program
+            </p>
+            <p className="text-sm text-gray-900 flex items-center gap-1">
+              🏢 {ticket.department_program?.trim() || "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+              Supervisor
+            </p>
+            <p className="text-sm text-gray-900 flex items-center gap-1">
+              👤 {ticket.supervisor?.trim() || "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase mb-1">
               Status
             </p>
             <div className="flex items-center gap-1">
@@ -299,8 +317,8 @@ export default function TicketPage() {
             <p className="text-xs font-medium text-gray-500 uppercase mb-1">
               Created By
             </p>
-            <p className="text-sm text-gray-900 flex items-center gap-1">
-              👤 {ticket.requester_email}
+            <p className="text-sm text-gray-900 flex items-center gap-1 truncate" title={ticket.requester_email}>
+              📧 {ticket.requester_email}
             </p>
           </div>
           {ticket.updated_at && (

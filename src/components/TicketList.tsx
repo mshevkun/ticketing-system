@@ -15,6 +15,8 @@ type Ticket = {
   category: string;
   status: string;
   requester_email: string;
+  department_program?: string;
+  supervisor?: string;
   attachments: string[] | null;
   created_at?: string;
 };

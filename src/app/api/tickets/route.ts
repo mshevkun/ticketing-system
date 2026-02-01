@@ -66,11 +66,23 @@ function stErrInfo(err: unknown): NormalizedStorageErr | undefined {
   return info;
 }
 
+// Category options (must match form dropdown)
+const CATEGORY_OPTIONS = [
+  "Software",
+  "hardware",
+  "printer",
+  "network",
+  "outlook",
+  "Other",
+] as const;
+
 // ---------- Validation ----------
 const TicketSchema = z.object({
   title: z.string().min(3, "Title is required (min 3)"),
   description: z.string().min(5, "Description is required (min 5)"),
-  category: z.string().min(2, "Category is required"),
+  category: z.enum(CATEGORY_OPTIONS),
+  department_program: z.string().min(1, "Department/Program is required"),
+  supervisor: z.string().min(1, "Supervisor is required"),
   requester_email: z.string().email("Valid email is required"),
 });
 type TicketInput = z.infer<typeof TicketSchema>;
@@ -102,7 +114,9 @@ export async function POST(req: Request) {
       const values: TicketInput = {
         title: String(form.get("title") ?? ""),
         description: String(form.get("description") ?? ""),
-        category: String(form.get("category") ?? ""),
+        category: String(form.get("category") ?? "") as TicketInput["category"],
+        department_program: String(form.get("department_program") ?? ""),
+        supervisor: String(form.get("supervisor") ?? ""),
         requester_email: String(form.get("requester_email") ?? ""),
       };
       const files = form.getAll("attachments") as File[];

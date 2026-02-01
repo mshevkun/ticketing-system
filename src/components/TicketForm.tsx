@@ -6,12 +6,22 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabaseClient";
 
-// Validation schema without user input for email
+// Category options for dropdown (stored as-is in DB)
+const CATEGORY_OPTIONS = [
+  "Software",
+  "hardware",
+  "printer",
+  "network",
+  "outlook",
+  "Other",
+] as const;
+
 const FormSchema = z.object({
   title: z.string().min(3, "Title is required"),
   description: z.string().min(5, "Description is required"),
-  category: z.string().min(2, "Category is required"),
-  // requester_email is still validated, но мы заполняем его сами
+  category: z.enum(CATEGORY_OPTIONS),
+  department_program: z.string().min(1, "Department/Program is required"),
+  supervisor: z.string().min(1, "Supervisor is required"),
   requester_email: z.string().email("Valid email is required"),
 });
 type FormValues = z.infer<typeof FormSchema>;
@@ -33,7 +43,9 @@ export default function TicketForm() {
     defaultValues: {
       title: "",
       description: "",
-      category: "",
+      category: CATEGORY_OPTIONS[0],
+      department_program: "",
+      supervisor: "",
       requester_email: "",
     },
   });
@@ -84,6 +96,8 @@ export default function TicketForm() {
       formData.append("title", values.title);
       formData.append("description", values.description);
       formData.append("category", values.category);
+      formData.append("department_program", values.department_program);
+      formData.append("supervisor", values.supervisor);
       formData.append("requester_email", userEmail); // always use logged user email
 
       // Use selectedFiles state instead of input.files
@@ -129,7 +143,9 @@ export default function TicketForm() {
       reset({
         title: "",
         description: "",
-        category: "",
+        category: CATEGORY_OPTIONS[0],
+        department_program: "",
+        supervisor: "",
         requester_email: userEmail,
       });
       setSelectedFiles([]); // Clear selected files
@@ -214,24 +230,74 @@ export default function TicketForm() {
           >
             Category *
           </label>
-          <input
+          <select
             id="category"
-            className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+            className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white cursor-pointer ${
               errors.category
                 ? "border-red-300 focus:ring-red-500"
                 : "border-gray-300"
             }`}
-            placeholder="e.g., Hardware, Outlook, Printer, Network..."
             {...register("category")}
-          />
+          >
+            {CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
           {errors.category && (
             <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
               <span>⚠️</span> {errors.category.message}
             </p>
           )}
-          <p className="mt-1.5 text-xs text-gray-500">
-            Examples: Hardware, Software, Outlook, Network, Printer
-          </p>
+        </div>
+
+        <div>
+          <label
+            htmlFor="department_program"
+            className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+          >
+            Department / Program *
+          </label>
+          <input
+            id="department_program"
+            className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+              errors.department_program
+                ? "border-red-300 focus:ring-red-500"
+                : "border-gray-300"
+            }`}
+            placeholder="e.g., HR, Finance, Program Name"
+            {...register("department_program")}
+          />
+          {errors.department_program && (
+            <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+              <span>⚠️</span> {errors.department_program.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="supervisor"
+            className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+          >
+            Supervisor *
+          </label>
+          <input
+            id="supervisor"
+            className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
+              errors.supervisor
+                ? "border-red-300 focus:ring-red-500"
+                : "border-gray-300"
+            }`}
+            placeholder="Supervisor name"
+            {...register("supervisor")}
+          />
+          {errors.supervisor && (
+            <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+              <span>⚠️</span> {errors.supervisor.message}
+            </p>
+          )}
         </div>
 
         {/* Work email shown but disabled */}
