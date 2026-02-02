@@ -8,6 +8,7 @@ type Comment = {
   author_email: string;
   content: string;
   created_at: string;
+  attachments?: string[] | null;
 };
 
 const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
@@ -22,20 +23,42 @@ export default function Comments({
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [signedUrlsByComment, setSignedUrlsByComment] = useState<Record<string, Record<string, string>>>({});
+  const [removingAttachment, setRemovingAttachment] = useState<string | null>(null);
   const containerRef = useRef<HTMLUListElement | null>(null);
 
-  // Load comments from Supabase
+  // Load comments from Supabase (include attachments)
   const fetchComments = useCallback(async () => {
     const { data, error } = await supabase
       .from("comments")
-      .select("id, author_email, content, created_at")
+      .select("id, author_email, content, created_at, attachments")
       .eq("ticket_id", ticketId)
       .order("created_at", { ascending: true });
 
     if (error) {
       console.error("Error fetching comments:", error.message);
+      setComments([]);
     } else {
       setComments(data || []);
+      // Fetch signed URLs for comments that have attachments
+      const withAttachments = (data || []).filter(
+        (c) => c.attachments && Array.isArray(c.attachments) && c.attachments.length > 0
+      );
+      const urls: Record<string, Record<string, string>> = {};
+      await Promise.all(
+        withAttachments.map(async (c) => {
+          try {
+            const res = await fetch(`/api/comments/${c.id}/attachments`);
+            if (res.ok) {
+              const { urls: commentUrls } = await res.json();
+              urls[c.id] = commentUrls || {};
+            }
+          } catch {
+            // ignore
+          }
+        })
+      );
+      setSignedUrlsByComment(urls);
     }
     setLoading(false);
   }, [ticketId]);
@@ -98,6 +121,27 @@ export default function Comments({
 
   const getInitials = (email: string) => {
     return email.charAt(0).toUpperCase();
+  };
+
+  const handleRemoveCommentAttachment = async (commentId: string, filePath: string) => {
+    if (!currentUserEmail) return;
+    setRemovingAttachment(filePath);
+    try {
+      const res = await fetch(`/api/comments/${commentId}/attachments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userEmail: currentUserEmail, filePath }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to remove attachment");
+      }
+      await fetchComments();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRemovingAttachment(null);
+    }
   };
 
   if (loading) {
@@ -171,6 +215,47 @@ export default function Comments({
                       <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-900">
                         {c.content}
                       </p>
+                      {c.attachments && c.attachments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {c.attachments.map((path, idx) => {
+                            const signedUrls = signedUrlsByComment[c.id] || {};
+                            const url = signedUrls[path];
+                            const fileName = path.split("/").pop() || "file";
+                            const email = currentUserEmail;
+                            const canRemove =
+                              email !== null &&
+                              (email === c.author_email || IT_EMAILS.includes(email));
+                            const isRemoving = removingAttachment === path;
+                            return (
+                              <div
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs"
+                              >
+                                <a
+                                  href={url || "#"}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline truncate max-w-[140px]"
+                                  onClick={(e) => !url && e.preventDefault()}
+                                >
+                                  📄 {fileName}
+                                </a>
+                                {canRemove && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveCommentAttachment(c.id, path)}
+                                    disabled={isRemoving}
+                                    className="text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+                                    title="Remove attachment"
+                                  >
+                                    {isRemoving ? "…" : "✕"}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   {isAdmin && (

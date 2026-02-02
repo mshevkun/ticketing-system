@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Comments from "@/components/Comments";
@@ -32,6 +32,9 @@ export default function TicketPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [deleting, setDeleting] = useState(false);
+  const [addingAttachments, setAddingAttachments] = useState(false);
+  const [removingAttachment, setRemovingAttachment] = useState<string | null>(null);
+  const ticketAttachmentInputRef = useRef<HTMLInputElement | null>(null);
 
   // Hard-coded list of IT emails for MVP
   const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
@@ -80,6 +83,56 @@ export default function TicketPage() {
   useEffect(() => {
     if (id) fetchTicket();
   }, [id, fetchTicket]);
+
+  const canEditTicket =
+    userEmail &&
+    (IT_EMAILS.includes(userEmail) || ticket?.requester_email === userEmail);
+
+  const handleAddAttachments = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!ticket || !userEmail || !e.target.files?.length) return;
+    const files = Array.from(e.target.files);
+    setAddingAttachments(true);
+    try {
+      const formData = new FormData();
+      formData.append("userEmail", userEmail);
+      files.forEach((file) => formData.append("attachments", file));
+      const res = await fetch(`/api/tickets/${id}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to add attachments");
+      }
+      await fetchTicket();
+      if (ticketAttachmentInputRef.current) ticketAttachmentInputRef.current.value = "";
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAddingAttachments(false);
+    }
+  };
+
+  const handleRemoveAttachment = async (filePath: string) => {
+    if (!ticket || !userEmail) return;
+    setRemovingAttachment(filePath);
+    try {
+      const res = await fetch(`/api/tickets/${id}/attachments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userEmail, filePath }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to remove attachment");
+      }
+      await fetchTicket();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRemovingAttachment(null);
+    }
+  };
 
   // Delete ticket handler
   const handleDelete = async () => {
@@ -334,42 +387,82 @@ export default function TicketPage() {
         </div>
 
         {/* Attachments */}
-        {ticket.attachments && ticket.attachments.length > 0 && (
-          <div>
-            <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
-              📎 Attachments ({ticket.attachments.length})
-            </h3>
-            <div className="flex flex-wrap gap-2">
+        <div>
+          <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+            📎 Attachments {ticket.attachments?.length ? `(${ticket.attachments.length})` : ""}
+          </h3>
+          {ticket.attachments && ticket.attachments.length > 0 ? (
+            <div className="flex flex-wrap gap-2 mb-3">
               {ticket.attachments.map((file, idx) => {
-                // Use signed URL if available, otherwise show placeholder
                 const signedUrl = signedUrls[file];
                 const fileName = file.split("/").pop() || "attachment";
+                const isRemoving = removingAttachment === file;
 
                 return (
-                  <a
+                  <div
                     key={idx}
-                    href={signedUrl || "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm text-gray-700 hover:bg-gray-100 hover:border-gray-300 transition-colors ${
-                      !signedUrl ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                    onClick={(e) => {
-                      if (!signedUrl) {
-                        e.preventDefault();
-                        alert("Loading attachment URL...");
-                      }
-                    }}
+                    className="inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm text-gray-700"
                   >
-                    <span>📄</span>
-                    <span>{fileName}</span>
-                    <span className="text-gray-400">↗</span>
-                  </a>
+                    <a
+                      href={signedUrl || "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`hover:bg-gray-100 hover:border-gray-300 transition-colors rounded ${
+                        !signedUrl ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                      onClick={(e) => !signedUrl && e.preventDefault()}
+                    >
+                      <span>📄</span>
+                      <span>{fileName}</span>
+                      <span className="text-gray-400">↗</span>
+                    </a>
+                    {canEditTicket && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(file)}
+                        disabled={isRemoving}
+                        className="text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer ml-0.5"
+                        title="Remove attachment"
+                      >
+                        {isRemoving ? "…" : "✕"}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-xs text-gray-500 mb-2">No attachments yet.</p>
+          )}
+          {canEditTicket && (
+            <div className="flex items-center gap-2">
+              <input
+                ref={ticketAttachmentInputRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf,.doc,.docx,.txt"
+                onChange={handleAddAttachments}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => ticketAttachmentInputRef.current?.click()}
+                disabled={addingAttachments}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 cursor-pointer"
+              >
+                {addingAttachments ? (
+                  <>
+                    <span className="animate-spin">⏳</span> Adding...
+                  </>
+                ) : (
+                  <>
+                    <span>📎</span> Add attachments
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Conversation section */}

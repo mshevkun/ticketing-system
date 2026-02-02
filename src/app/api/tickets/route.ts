@@ -69,10 +69,10 @@ function stErrInfo(err: unknown): NormalizedStorageErr | undefined {
 // Category options (must match form dropdown)
 const CATEGORY_OPTIONS = [
   "Software",
-  "hardware",
-  "printer",
-  "network",
-  "outlook",
+  "Hardware",
+  "Printer",
+  "Network",
+  "Outlook",
   "Other",
 ] as const;
 

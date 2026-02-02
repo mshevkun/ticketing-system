@@ -9,10 +9,10 @@ import { supabase } from "@/lib/supabaseClient";
 // Category options for dropdown (stored as-is in DB)
 const CATEGORY_OPTIONS = [
   "Software",
-  "hardware",
-  "printer",
-  "network",
-  "outlook",
+  "Hardware",
+  "Printer",
+  "Network",
+  "Outlook",
   "Other",
 ] as const;
 
