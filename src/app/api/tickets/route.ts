@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { sendEmail } from "@/lib/email";
+import { sendEmailsWithRateLimit } from "@/lib/email";
 import { IT_EMAILS } from "@/lib/constants";
 import type { PostgrestError } from "@supabase/supabase-js";
 
@@ -207,23 +207,15 @@ export async function POST(req: Request) {
         <p>View and respond in the People USA IT Ticketing System.</p>
         <p>— IT Ticketing System</p>
       `;
-      const ticketEmailPromises: Promise<unknown>[] = [
-        sendEmail({
-          to: ticket.requester_email,
-          subject: `Ticket submitted: ${ticket.title}`,
-          html: requesterConfirmHtml,
-        }).catch((e) => logError("Ticket-created email to requester:", e)),
+      const ticketEmails = [
+        { to: ticket.requester_email, subject: `Ticket submitted: ${ticket.title}`, html: requesterConfirmHtml },
+        ...IT_EMAILS.map((itEmail) => ({
+          to: itEmail,
+          subject: `New ticket: ${ticket.title}`,
+          html: itAlertHtml,
+        })),
       ];
-      for (const itEmail of IT_EMAILS) {
-        ticketEmailPromises.push(
-          sendEmail({
-            to: itEmail,
-            subject: `New ticket: ${ticket.title}`,
-            html: itAlertHtml,
-          }).catch((e) => logError("Ticket-created email to IT:", e))
-        );
-      }
-      await Promise.all(ticketEmailPromises);
+      await sendEmailsWithRateLimit(ticketEmails);
 
       return NextResponse.json(
         {
@@ -276,23 +268,15 @@ export async function POST(req: Request) {
       <p>View and respond in the People USA IT Ticketing System.</p>
       <p>— IT Ticketing System</p>
     `;
-    const jsonEmailPromises: Promise<unknown>[] = [
-      sendEmail({
-        to: ticket.requester_email,
-        subject: `Ticket submitted: ${ticket.title}`,
-        html: requesterConfirmHtml,
-      }).catch((e) => logError("Ticket-created email to requester:", e)),
+    const jsonEmails = [
+      { to: ticket.requester_email, subject: `Ticket submitted: ${ticket.title}`, html: requesterConfirmHtml },
+      ...IT_EMAILS.map((itEmail) => ({
+        to: itEmail,
+        subject: `New ticket: ${ticket.title}`,
+        html: itAlertHtml,
+      })),
     ];
-    for (const itEmail of IT_EMAILS) {
-      jsonEmailPromises.push(
-        sendEmail({
-          to: itEmail,
-          subject: `New ticket: ${ticket.title}`,
-          html: itAlertHtml,
-        }).catch((e) => logError("Ticket-created email to IT:", e))
-      );
-    }
-    await Promise.all(jsonEmailPromises);
+    await sendEmailsWithRateLimit(jsonEmails);
 
     return NextResponse.json({ ticket_id: ins.data.id }, { status: 201 });
   } catch (e: unknown) {

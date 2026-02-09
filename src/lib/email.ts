@@ -7,6 +7,23 @@ const resend = process.env.RESEND_API_KEY
 const FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || process.env.EMAIL_FROM || "onboarding@resend.dev";
 
+/** Resend limit: 2 requests/second. Delay between sends to avoid 429. */
+const RATE_LIMIT_DELAY_MS = 550;
+
+/**
+ * Send multiple emails sequentially with rate-limit delay to stay under Resend's 2 req/sec.
+ */
+export async function sendEmailsWithRateLimit(
+  items: Array<{ to: string; subject: string; html: string }>
+): Promise<void> {
+  for (let i = 0; i < items.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, RATE_LIMIT_DELAY_MS));
+    await sendEmail(items[i]).catch((e) =>
+      console.error("[email] Rate-limited send failed:", e)
+    );
+  }
+}
+
 /**
  * Send an email via Resend. No-op if RESEND_API_KEY is not set.
  */
