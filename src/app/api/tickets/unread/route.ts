@@ -87,7 +87,16 @@ export async function GET(req: NextRequest) {
     const unreadIds: string[] = [];
     for (const ticketId of ticketIds) {
       const latest = latestCommentByTicket[ticketId];
-      if (!latest) continue;
+      if (!latest) {
+        // No comments yet — new ticket. Show red dot for IT staff until they view it
+        if (isIT) {
+          const lastRead = lastReadByTicket[ticketId];
+          if (!lastRead) {
+            unreadIds.push(ticketId);
+          }
+        }
+        continue;
+      }
       if (latest.author_email === userEmail) continue;
 
       const lastRead = lastReadByTicket[ticketId];

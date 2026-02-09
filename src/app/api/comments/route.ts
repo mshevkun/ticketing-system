@@ -87,13 +87,13 @@ export async function POST(req: Request) {
         .eq("id", comment.id);
     }
 
-    // Notifications: IT replied → email requester; requester/other replied → email all IT
+    // Notifications: IT replied → email requester + all IT (except author); requester replied → email all IT
     const isIT = IT_EMAILS.includes(authorEmail);
     const contentPreview =
       content.length > 200 ? content.slice(0, 200) + "…" : content;
 
     if (isIT) {
-      const html = `
+      const requesterHtml = `
         <p>Hello,</p>
         <p>IT Support has replied to your ticket <strong>${ticket.title}</strong>.</p>
         <p><strong>Message:</strong></p>
@@ -104,24 +104,26 @@ export async function POST(req: Request) {
       sendEmail({
         to: ticket.requester_email,
         subject: `New reply on your ticket: ${ticket.title}`,
-        html,
+        html: requesterHtml,
       }).catch((e) => console.error("[comments.api] Email to requester:", e));
-    } else {
-      const html = `
-        <p>A new message was added to ticket <strong>${ticket.title}</strong>.</p>
-        <p><strong>From:</strong> ${authorEmail}</p>
-        <p><strong>Message:</strong></p>
-        <p>${contentPreview.replace(/\n/g, "<br>")}</p>
-        <p>View and respond in the People USA IT Ticketing System.</p>
-        <p>— IT Ticketing System</p>
-      `;
-      for (const itEmail of IT_EMAILS) {
-        sendEmail({
-          to: itEmail,
-          subject: `New message on ticket: ${ticket.title}`,
-          html,
-        }).catch((e) => console.error("[comments.api] Email to IT:", e));
-      }
+    }
+
+    // IT staff: always get notified on every new message (including when another IT sends)
+    const itHtml = `
+      <p>A new message was added to ticket <strong>${ticket.title}</strong>.</p>
+      <p><strong>From:</strong> ${authorEmail}</p>
+      <p><strong>Message:</strong></p>
+      <p>${contentPreview.replace(/\n/g, "<br>")}</p>
+      <p>View and respond in the People USA IT Ticketing System.</p>
+      <p>— IT Ticketing System</p>
+    `;
+    for (const itEmail of IT_EMAILS) {
+      if (itEmail === authorEmail) continue; // don't email the author about their own message
+      sendEmail({
+        to: itEmail,
+        subject: `New message on ticket: ${ticket.title}`,
+        html: itHtml,
+      }).catch((e) => console.error("[comments.api] Email to IT:", e));
     }
 
     return NextResponse.json(
