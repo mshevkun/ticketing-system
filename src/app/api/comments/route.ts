@@ -92,6 +92,8 @@ export async function POST(req: Request) {
     const contentPreview =
       content.length > 200 ? content.slice(0, 200) + "…" : content;
 
+    const emailPromises: Promise<unknown>[] = [];
+
     if (isIT) {
       const requesterHtml = `
         <p>Hello,</p>
@@ -101,11 +103,13 @@ export async function POST(req: Request) {
         <p>View the full conversation in the People USA IT Ticketing System.</p>
         <p>— IT Ticketing System</p>
       `;
-      sendEmail({
-        to: ticket.requester_email,
-        subject: `New reply on your ticket: ${ticket.title}`,
-        html: requesterHtml,
-      }).catch((e) => console.error("[comments.api] Email to requester:", e));
+      emailPromises.push(
+        sendEmail({
+          to: ticket.requester_email,
+          subject: `New reply on your ticket: ${ticket.title}`,
+          html: requesterHtml,
+        }).catch((e) => console.error("[comments.api] Email to requester:", e))
+      );
     }
 
     // IT staff: always get notified on every new message (including when another IT sends)
@@ -119,12 +123,16 @@ export async function POST(req: Request) {
     `;
     for (const itEmail of IT_EMAILS) {
       if (itEmail === authorEmail) continue; // don't email the author about their own message
-      sendEmail({
-        to: itEmail,
-        subject: `New message on ticket: ${ticket.title}`,
-        html: itHtml,
-      }).catch((e) => console.error("[comments.api] Email to IT:", e));
+      emailPromises.push(
+        sendEmail({
+          to: itEmail,
+          subject: `New message on ticket: ${ticket.title}`,
+          html: itHtml,
+        }).catch((e) => console.error("[comments.api] Email to IT:", e))
+      );
     }
+
+    await Promise.all(emailPromises);
 
     return NextResponse.json(
       { ok: true, comment_id: comment.id, attachments: uploadedPaths.length },

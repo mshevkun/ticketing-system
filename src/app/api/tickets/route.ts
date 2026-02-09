@@ -200,12 +200,6 @@ export async function POST(req: Request) {
         <p>Our team will review it and get back to you. You can track the ticket in the People USA IT Ticketing System.</p>
         <p>— IT Support</p>
       `;
-      sendEmail({
-        to: ticket.requester_email,
-        subject: `Ticket submitted: ${ticket.title}`,
-        html: requesterConfirmHtml,
-      }).catch((e) => logError("Ticket-created email to requester:", e));
-
       const itAlertHtml = `
         <p>A new ticket has been submitted.</p>
         <p><strong>Title:</strong> ${ticket.title}</p>
@@ -213,13 +207,23 @@ export async function POST(req: Request) {
         <p>View and respond in the People USA IT Ticketing System.</p>
         <p>— IT Ticketing System</p>
       `;
-      for (const itEmail of IT_EMAILS) {
+      const ticketEmailPromises: Promise<unknown>[] = [
         sendEmail({
-          to: itEmail,
-          subject: `New ticket: ${ticket.title}`,
-          html: itAlertHtml,
-        }).catch((e) => logError("Ticket-created email to IT:", e));
+          to: ticket.requester_email,
+          subject: `Ticket submitted: ${ticket.title}`,
+          html: requesterConfirmHtml,
+        }).catch((e) => logError("Ticket-created email to requester:", e)),
+      ];
+      for (const itEmail of IT_EMAILS) {
+        ticketEmailPromises.push(
+          sendEmail({
+            to: itEmail,
+            subject: `New ticket: ${ticket.title}`,
+            html: itAlertHtml,
+          }).catch((e) => logError("Ticket-created email to IT:", e))
+        );
       }
+      await Promise.all(ticketEmailPromises);
 
       return NextResponse.json(
         {
@@ -265,12 +269,6 @@ export async function POST(req: Request) {
       <p>Our team will review it and get back to you. You can track the ticket in the People USA IT Ticketing System.</p>
       <p>— IT Support</p>
     `;
-    sendEmail({
-      to: ticket.requester_email,
-      subject: `Ticket submitted: ${ticket.title}`,
-      html: requesterConfirmHtml,
-    }).catch((e) => logError("Ticket-created email to requester:", e));
-
     const itAlertHtml = `
       <p>A new ticket has been submitted.</p>
       <p><strong>Title:</strong> ${ticket.title}</p>
@@ -278,13 +276,23 @@ export async function POST(req: Request) {
       <p>View and respond in the People USA IT Ticketing System.</p>
       <p>— IT Ticketing System</p>
     `;
-    for (const itEmail of IT_EMAILS) {
+    const jsonEmailPromises: Promise<unknown>[] = [
       sendEmail({
-        to: itEmail,
-        subject: `New ticket: ${ticket.title}`,
-        html: itAlertHtml,
-      }).catch((e) => logError("Ticket-created email to IT:", e));
+        to: ticket.requester_email,
+        subject: `Ticket submitted: ${ticket.title}`,
+        html: requesterConfirmHtml,
+      }).catch((e) => logError("Ticket-created email to requester:", e)),
+    ];
+    for (const itEmail of IT_EMAILS) {
+      jsonEmailPromises.push(
+        sendEmail({
+          to: itEmail,
+          subject: `New ticket: ${ticket.title}`,
+          html: itAlertHtml,
+        }).catch((e) => logError("Ticket-created email to IT:", e))
+      );
     }
+    await Promise.all(jsonEmailPromises);
 
     return NextResponse.json({ ticket_id: ins.data.id }, { status: 201 });
   } catch (e: unknown) {
