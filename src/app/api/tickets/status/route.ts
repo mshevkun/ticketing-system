@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { sendEmail } from "@/lib/email";
+import { IT_EMAILS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
-const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
+const STATUS_LABELS: Record<string, string> = {
+  new: "New",
+  in_progress: "In Progress",
+  resolved: "Resolved",
+  closed: "Closed",
+};
 
 export async function PATCH(req: Request) {
   try {
@@ -28,6 +35,17 @@ export async function PATCH(req: Request) {
       );
     }
 
+    // Fetch ticket before update (for email notification)
+    const { data: ticket, error: fetchError } = await supabaseServer
+      .from("tickets")
+      .select("requester_email, title, status")
+      .eq("id", ticketId)
+      .single();
+
+    if (fetchError || !ticket) {
+      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    }
+
     const upd = await supabaseServer
       .from("tickets")
       .update({ status })
@@ -36,6 +54,23 @@ export async function PATCH(req: Request) {
     if (upd.error) {
       return NextResponse.json({ error: upd.error.message }, { status: 500 });
     }
+
+    // Send email notification to ticket creator (fire-and-forget)
+    const statusLabel = STATUS_LABELS[status] || status;
+    const subject = `Ticket status updated: ${ticket.title}`;
+    const html = `
+      <p>Hello,</p>
+      <p>Your IT ticket <strong>${ticket.title}</strong> has been updated.</p>
+      <p><strong>New status:</strong> ${statusLabel}</p>
+      <p>You can view the ticket in the People USA IT Ticketing System.</p>
+      <p>— IT Support</p>
+    `;
+
+    await sendEmail({
+      to: ticket.requester_email,
+      subject,
+      html,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

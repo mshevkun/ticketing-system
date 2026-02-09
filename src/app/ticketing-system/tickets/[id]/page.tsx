@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Comments from "@/components/Comments";
 import CommentForm from "@/components/CommentForm";
 import StatusBadge from "@/components/StatusBadge";
+import { IT_EMAILS } from "@/lib/constants";
 
 // Type for ticket record
 type Ticket = {
@@ -34,10 +35,10 @@ export default function TicketPage() {
   const [deleting, setDeleting] = useState(false);
   const [addingAttachments, setAddingAttachments] = useState(false);
   const [removingAttachment, setRemovingAttachment] = useState<string | null>(null);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescriptionValue, setEditDescriptionValue] = useState("");
+  const [savingDescription, setSavingDescription] = useState(false);
   const ticketAttachmentInputRef = useRef<HTMLInputElement | null>(null);
-
-  // Hard-coded list of IT emails for MVP
-  const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
 
   // Fetch current user email
   useEffect(() => {
@@ -83,6 +84,24 @@ export default function TicketPage() {
   useEffect(() => {
     if (id) fetchTicket();
   }, [id, fetchTicket]);
+
+  // Mark ticket as read when user views it
+  useEffect(() => {
+    if (!ticket || !userEmail || loading) return;
+
+    const markRead = async () => {
+      try {
+        await fetch(`/api/tickets/${id}/read`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userEmail }),
+        });
+      } catch {
+        // ignore
+      }
+    };
+    markRead();
+  }, [id, ticket, userEmail, loading]);
 
   const canEditTicket =
     userEmail &&
@@ -281,14 +300,91 @@ export default function TicketPage() {
           </div>
         </div>
 
-        {/* Description */}
+        {/* Description — editable by ticket creator only */}
         <div className="mb-4 sm:mb-6">
-          <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2">
-            Description
-          </h3>
-          <p className="text-sm sm:text-base text-gray-900 whitespace-pre-wrap bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
-            {ticket.description}
-          </p>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h3 className="text-xs sm:text-sm font-medium text-gray-700">
+              Description
+            </h3>
+            {ticket.requester_email === userEmail && !editingDescription && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditDescriptionValue(ticket.description);
+                  setEditingDescription(true);
+                }}
+                className="text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded px-2 py-1"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          {editingDescription ? (
+            <div className="space-y-2">
+              <textarea
+                value={editDescriptionValue}
+                onChange={(e) => setEditDescriptionValue(e.target.value)}
+                className="w-full text-sm sm:text-base text-gray-900 whitespace-pre-wrap bg-white p-3 sm:p-4 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-[120px]"
+                placeholder="Description..."
+                disabled={savingDescription}
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const trimmed = editDescriptionValue.trim();
+                    if (trimmed.length < 5) {
+                      alert("Description must be at least 5 characters.");
+                      return;
+                    }
+                    if (!userEmail) return;
+                    setSavingDescription(true);
+                    try {
+                      const res = await fetch(`/api/tickets/${id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          userEmail,
+                          description: trimmed,
+                        }),
+                      });
+                      if (!res.ok) {
+                        const data = await res.json().catch(() => ({}));
+                        throw new Error(data.error || "Failed to update description");
+                      }
+                      setTicket((prev) =>
+                        prev ? { ...prev, description: trimmed } : null
+                      );
+                      setEditingDescription(false);
+                    } catch (err) {
+                      alert(err instanceof Error ? err.message : String(err));
+                    } finally {
+                      setSavingDescription(false);
+                    }
+                  }}
+                  disabled={savingDescription}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                >
+                  {savingDescription ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingDescription(false);
+                    setEditDescriptionValue(ticket.description);
+                  }}
+                  disabled={savingDescription}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm sm:text-base text-gray-900 whitespace-pre-wrap bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
+              {ticket.description}
+            </p>
+          )}
         </div>
 
         {/* Metadata Grid */}

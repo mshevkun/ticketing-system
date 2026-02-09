@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { IT_EMAILS } from "@/lib/constants";
 
 type Comment = {
   id: string;
@@ -10,8 +11,6 @@ type Comment = {
   created_at: string;
   attachments?: string[] | null;
 };
-
-const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
 
 export default function Comments({
   ticketId,

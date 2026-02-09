@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { IT_EMAILS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
 const BUCKET = "attachments";
 const URL_EXPIRY = 3600; // 1 hour in seconds
-const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
 
 // GET /api/tickets/[id]/attachments
 // Returns signed URLs for all attachments in a ticket

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { sendEmail } from "@/lib/email";
+import { IT_EMAILS } from "@/lib/constants";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -191,6 +193,34 @@ export async function POST(req: Request) {
           logError("Attachment update error:", sbErrInfo(upd.error));
       }
 
+      // 4) Notifications: requester (confirmation) + IT staff (new ticket)
+      const requesterConfirmHtml = `
+        <p>Hello,</p>
+        <p>Your IT ticket <strong>${ticket.title}</strong> has been submitted successfully.</p>
+        <p>Our team will review it and get back to you. You can track the ticket in the People USA IT Ticketing System.</p>
+        <p>— IT Support</p>
+      `;
+      sendEmail({
+        to: ticket.requester_email,
+        subject: `Ticket submitted: ${ticket.title}`,
+        html: requesterConfirmHtml,
+      }).catch((e) => logError("Ticket-created email to requester:", e));
+
+      const itAlertHtml = `
+        <p>A new ticket has been submitted.</p>
+        <p><strong>Title:</strong> ${ticket.title}</p>
+        <p><strong>From:</strong> ${ticket.requester_email}</p>
+        <p>View and respond in the People USA IT Ticketing System.</p>
+        <p>— IT Ticketing System</p>
+      `;
+      for (const itEmail of IT_EMAILS) {
+        sendEmail({
+          to: itEmail,
+          subject: `New ticket: ${ticket.title}`,
+          html: itAlertHtml,
+        }).catch((e) => logError("Ticket-created email to IT:", e));
+      }
+
       return NextResponse.json(
         {
           ticket_id: ticket.id,
@@ -226,6 +256,34 @@ export async function POST(req: Request) {
       const info = sbErrInfo(ins.error);
       logError("Insert failed (JSON):", info);
       return jsonError("Insert failed", 500, { supabase: info });
+    }
+
+    const ticket = { id: ins.data.id, ...parsed.data };
+    const requesterConfirmHtml = `
+      <p>Hello,</p>
+      <p>Your IT ticket <strong>${ticket.title}</strong> has been submitted successfully.</p>
+      <p>Our team will review it and get back to you. You can track the ticket in the People USA IT Ticketing System.</p>
+      <p>— IT Support</p>
+    `;
+    sendEmail({
+      to: ticket.requester_email,
+      subject: `Ticket submitted: ${ticket.title}`,
+      html: requesterConfirmHtml,
+    }).catch((e) => logError("Ticket-created email to requester:", e));
+
+    const itAlertHtml = `
+      <p>A new ticket has been submitted.</p>
+      <p><strong>Title:</strong> ${ticket.title}</p>
+      <p><strong>From:</strong> ${ticket.requester_email}</p>
+      <p>View and respond in the People USA IT Ticketing System.</p>
+      <p>— IT Ticketing System</p>
+    `;
+    for (const itEmail of IT_EMAILS) {
+      sendEmail({
+        to: itEmail,
+        subject: `New ticket: ${ticket.title}`,
+        html: itAlertHtml,
+      }).catch((e) => logError("Ticket-created email to IT:", e));
     }
 
     return NextResponse.json({ ticket_id: ins.data.id }, { status: 201 });

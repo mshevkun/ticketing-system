@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { IT_EMAILS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
 const BUCKET = "attachments";
 const URL_EXPIRY = 3600;
-const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
 
 // GET /api/comments/[id]/attachments
 // Returns signed URLs for a comment's attachments

@@ -3,11 +3,14 @@
 import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import { supabase } from "@/lib/supabaseClient";
-import { useEffect, useState } from "react";
+import { IT_EMAILS } from "@/lib/constants";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 
 export default function TicketingSystemPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
+  const [unreadIds, setUnreadIds] = useState<string[]>([]);
 
   // Get current user + subscribe to changes
   useEffect(() => {
@@ -49,6 +52,29 @@ export default function TicketingSystemPage() {
     await supabase.auth.signOut();
   };
 
+  const fetchUnreadIds = useCallback(async () => {
+    if (!userEmail) return;
+    try {
+      const res = await fetch(
+        `/api/tickets/unread?userEmail=${encodeURIComponent(userEmail)}`
+      );
+      if (res.ok) {
+        const { unreadIds: ids } = await res.json();
+        setUnreadIds(ids || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, [userEmail]);
+
+  useEffect(() => {
+    if (userEmail) {
+      fetchUnreadIds();
+      const interval = setInterval(fetchUnreadIds, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [userEmail, fetchUnreadIds]);
+
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
@@ -82,10 +108,7 @@ export default function TicketingSystemPage() {
                   <span className="md:hidden">{userEmail.split('@')[0]}</span>
                 </p>
                 <p className="text-[10px] sm:text-xs text-gray-500">
-                  {[
-                    "cmansilla@people-usa.org",
-                    "mshevkun@people-usa.org",
-                  ].includes(userEmail)
+                  {IT_EMAILS.includes(userEmail)
                     ? "IT Staff"
                     : "Employee"}
                 </p>
@@ -135,12 +158,46 @@ export default function TicketingSystemPage() {
             </div>
           </div>
         ) : (
-          <div className="space-y-6 sm:space-y-8">
-            {/* Form to create a new ticket */}
-            <TicketForm />
+          <div className="w-full max-w-4xl">
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200 mb-4 sm:mb-6">
+              <button
+                onClick={() => setActiveTab("create")}
+                className={`px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium border-b-2 transition-colors cursor-pointer ${
+                  activeTab === "create"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                📋 Create Ticket
+              </button>
+              <button
+                onClick={() => setActiveTab("tickets")}
+                className={`relative px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium border-b-2 transition-colors cursor-pointer ${
+                  activeTab === "tickets"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                🎫 Tickets
+                {unreadIds.length > 0 && (
+                  <span
+                    className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500"
+                    title="Unread replies"
+                    aria-hidden
+                  />
+                )}
+              </button>
+            </div>
 
-            {/* List of tickets */}
-            <TicketList />
+            {/* Tab content */}
+            {activeTab === "create" && <TicketForm />}
+            {activeTab === "tickets" && (
+              <TicketList
+                unreadIds={unreadIds}
+                onUnreadRefetch={fetchUnreadIds}
+              />
+            )}
           </div>
         )}
       </div>

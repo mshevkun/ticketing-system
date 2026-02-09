@@ -5,8 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import StatusBadge from "./StatusBadge";
-
-const IT_EMAILS = ["cmansilla@people-usa.org", "mshevkun@people-usa.org"];
+import { IT_EMAILS } from "@/lib/constants";
 
 type Ticket = {
   id: string;
@@ -21,7 +20,15 @@ type Ticket = {
   created_at?: string;
 };
 
-export default function TicketList() {
+type TicketListProps = {
+  unreadIds?: string[];
+  onUnreadRefetch?: () => void;
+};
+
+export default function TicketList({
+  unreadIds = [],
+  onUnreadRefetch,
+}: TicketListProps) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -64,10 +71,17 @@ export default function TicketList() {
   }, [userEmail, fetchTickets]);
 
   useEffect(() => {
-    const handler = () => fetchTickets();
+    const handler = () => {
+      fetchTickets();
+      onUnreadRefetch?.();
+    };
     window.addEventListener("ticket:created", handler);
-    return () => window.removeEventListener("ticket:created", handler);
-  }, [userEmail, fetchTickets]);
+    window.addEventListener("comment:added", handler);
+    return () => {
+      window.removeEventListener("ticket:created", handler);
+      window.removeEventListener("comment:added", handler);
+    };
+  }, [fetchTickets, onUnreadRefetch]);
 
   if (loading) {
     return (
@@ -132,8 +146,14 @@ export default function TicketList() {
                 className="block bg-white border border-gray-200 rounded-lg p-4 sm:p-5 hover:shadow-md hover:border-gray-300 transition-all duration-200 group"
               >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2 sm:gap-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors flex-1 pr-2 sm:pr-4">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors flex-1 pr-2 sm:pr-4 flex items-center gap-2">
                     📋 {t.title}
+                    {unreadIds.includes(t.id) && (
+                      <span
+                        className="flex-shrink-0 w-2 h-2 rounded-full bg-red-500"
+                        title="New reply"
+                      />
+                    )}
                   </h3>
                   <StatusBadge status={t.status} size="sm" />
                 </div>

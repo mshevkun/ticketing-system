@@ -161,7 +161,7 @@ export default function TicketForm() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm">
+    <div className="w-full bg-white border border-gray-200 rounded-xl p-4 sm:p-6 shadow-sm">
       <div className="mb-4 sm:mb-6">
         <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">
           📋 Create IT Ticket
