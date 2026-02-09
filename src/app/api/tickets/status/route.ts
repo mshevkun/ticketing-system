@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
-import { sendEmail } from "@/lib/email";
+import { sendEmailsWithRateLimit } from "@/lib/email";
 import { IT_EMAILS } from "@/lib/constants";
 
 export const runtime = "nodejs";
@@ -55,10 +55,11 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: upd.error.message }, { status: 500 });
     }
 
-    // Send email notification to ticket creator (fire-and-forget)
+    // Notify requester + all IT staff (rate-limited to respect Resend 2 req/sec)
     const statusLabel = STATUS_LABELS[status] || status;
     const subject = `Ticket status updated: ${ticket.title}`;
-    const html = `
+
+    const requesterHtml = `
       <p>Hello,</p>
       <p>Your IT ticket <strong>${ticket.title}</strong> has been updated.</p>
       <p><strong>New status:</strong> ${statusLabel}</p>
@@ -66,11 +67,23 @@ export async function PATCH(req: Request) {
       <p>— IT Support</p>
     `;
 
-    await sendEmail({
-      to: ticket.requester_email,
-      subject,
-      html,
-    });
+    const itHtml = `
+      <p>A ticket status was updated.</p>
+      <p><strong>Ticket:</strong> ${ticket.title}</p>
+      <p><strong>New status:</strong> ${statusLabel}</p>
+      <p><strong>Updated by:</strong> ${operator}</p>
+      <p>View the ticket in the People USA IT Ticketing System.</p>
+      <p>— IT Ticketing System</p>
+    `;
+
+    const emails: Array<{ to: string; subject: string; html: string }> = [
+      { to: ticket.requester_email, subject, html: requesterHtml },
+    ];
+    for (const itEmail of IT_EMAILS) {
+      if (itEmail === operator) continue; // don't email who made the change
+      emails.push({ to: itEmail, subject, html: itHtml });
+    }
+    await sendEmailsWithRateLimit(emails);
 
     return NextResponse.json({ ok: true });
   } catch (e) {
