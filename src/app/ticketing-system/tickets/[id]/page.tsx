@@ -34,7 +34,9 @@ export default function TicketPage() {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [deleting, setDeleting] = useState(false);
   const [addingAttachments, setAddingAttachments] = useState(false);
-  const [removingAttachment, setRemovingAttachment] = useState<string | null>(null);
+  const [removingAttachment, setRemovingAttachment] = useState<string | null>(
+    null,
+  );
   const [editingDescription, setEditingDescription] = useState(false);
   const [editDescriptionValue, setEditDescriptionValue] = useState("");
   const [savingDescription, setSavingDescription] = useState(false);
@@ -107,7 +109,9 @@ export default function TicketPage() {
     userEmail &&
     (IT_EMAILS.includes(userEmail) || ticket?.requester_email === userEmail);
 
-  const handleAddAttachments = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAddAttachments = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     if (!ticket || !userEmail || !e.target.files?.length) return;
     const files = Array.from(e.target.files);
     setAddingAttachments(true);
@@ -124,7 +128,8 @@ export default function TicketPage() {
         throw new Error(data.error || "Failed to add attachments");
       }
       await fetchTicket();
-      if (ticketAttachmentInputRef.current) ticketAttachmentInputRef.current.value = "";
+      if (ticketAttachmentInputRef.current)
+        ticketAttachmentInputRef.current.value = "";
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
     } finally {
@@ -350,10 +355,12 @@ export default function TicketPage() {
                       });
                       if (!res.ok) {
                         const data = await res.json().catch(() => ({}));
-                        throw new Error(data.error || "Failed to update description");
+                        throw new Error(
+                          data.error || "Failed to update description",
+                        );
                       }
                       setTicket((prev) =>
-                        prev ? { ...prev, description: trimmed } : null
+                        prev ? { ...prev, description: trimmed } : null,
                       );
                       setEditingDescription(false);
                     } catch (err) {
@@ -438,12 +445,12 @@ export default function TicketPage() {
                       if (!res.ok) {
                         const body = await res.json().catch(() => ({}));
                         throw new Error(
-                          body?.error || "Failed to update status"
+                          body?.error || "Failed to update status",
                         );
                       }
 
                       setTicket(
-                        (prev) => prev && { ...prev, status: newStatus }
+                        (prev) => prev && { ...prev, status: newStatus },
                       );
                     } catch (err) {
                       const msg =
@@ -466,7 +473,10 @@ export default function TicketPage() {
             <p className="text-xs font-medium text-gray-500 uppercase mb-1">
               Created By
             </p>
-            <p className="text-sm text-gray-900 flex items-center gap-1 truncate" title={ticket.requester_email}>
+            <p
+              className="text-sm text-gray-900 flex items-center gap-1 truncate"
+              title={ticket.requester_email}
+            >
               📧 {ticket.requester_email}
             </p>
           </div>
@@ -485,7 +495,8 @@ export default function TicketPage() {
         {/* Attachments */}
         <div>
           <h3 className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
-            📎 Attachments {ticket.attachments?.length ? `(${ticket.attachments.length})` : ""}
+            📎 Attachments{" "}
+            {ticket.attachments?.length ? `(${ticket.attachments.length})` : ""}
           </h3>
           {ticket.attachments && ticket.attachments.length > 0 ? (
             <div className="flex flex-wrap gap-2 mb-3">
