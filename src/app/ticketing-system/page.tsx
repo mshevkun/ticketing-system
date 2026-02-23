@@ -4,22 +4,23 @@ import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
-const AUTH_POPUP_PARAM = "auth";
-const AUTH_POPUP_VALUE = "popup";
+const AUTH_REDIRECT_PARAM = "auth";
+const AUTH_REDIRECT_VALUE = "redirect";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
-  const isAuthPopup = searchParams.get(AUTH_POPUP_PARAM) === AUTH_POPUP_VALUE;
+  const isAuthRedirect = searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
+
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
   const [isInIframe, setIsInIframe] = useState(false);
-  const [popupStatus, setPopupStatus] = useState<"idle" | "redirecting" | "success">("idle");
+  const authRedirectStarted = useRef(false);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
@@ -44,73 +45,25 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened as auth popup (?auth=popup): start OAuth or, after return, notify opener and close
+  // When opened from Teams with ?auth=redirect: go straight to Microsoft sign-in (no login button screen).
   useEffect(() => {
-    if (!isAuthPopup || typeof window === "undefined") return;
+    if (!isAuthRedirect || userEmail !== null || typeof window === "undefined" || authRedirectStarted.current) return;
+    authRedirectStarted.current = true;
+    const redirectTo = `${window.location.origin}/ticketing-system`;
+    supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+  }, [isAuthRedirect, userEmail]);
 
-    const run = async () => {
-      const hasHash = !!window.location.hash;
-      if (hasHash) {
-        setPopupStatus("success");
-        // Return from OAuth: Supabase may still be processing the hash. Wait for session then notify opener and close.
-        const waitForSession = (): Promise<void> =>
-          new Promise((resolve) => {
-            const check = async () => {
-              const { data: { session } } = await supabase.auth.getSession();
-              if (session) {
-                resolve();
-                return;
-              }
-              setTimeout(check, 100);
-            };
-            check();
-          });
-        const timeout = new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error("Auth timeout")), 15000)
-        );
-        await Promise.race([waitForSession(), timeout]);
-        try {
-          window.opener?.postMessage({ type: "auth-complete" }, window.location.origin);
-        } finally {
-          window.close();
-        }
-        return;
-      }
-      setPopupStatus("redirecting");
-      // First load in popup: start OAuth (redirect will happen in this window)
-      const redirectTo = `${window.location.origin}/ticketing-system?${AUTH_POPUP_PARAM}=${AUTH_POPUP_VALUE}`;
-      await supabase.auth.signInWithOAuth({
-        provider: "azure",
-        options: {
-          redirectTo,
-          queryParams: { prompt: "select_account" },
-        },
-      });
-    };
-
-    run();
-  }, [isAuthPopup]);
-
-  // Listen for auth-complete from popup (when we opened the popup from inside an iframe)
-  useEffect(() => {
-    if (typeof window === "undefined" || !isInIframe) return;
-    const handler = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.data?.type !== "auth-complete") return;
-      supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [isInIframe]);
-
-  // Sign in with Microsoft
+  // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {
     if (isInIframe) {
-      // Teams / iframe: open OAuth in a popup so redirects work
-      const popupUrl = `${window.location.origin}/ticketing-system?${AUTH_POPUP_PARAM}=${AUTH_POPUP_VALUE}`;
-      const w = window.open(popupUrl, "auth", "width=600,height=600,scrollbars=yes");
-      if (!w) {
-        alert("Please allow popups for this site to sign in from Teams.");
-      }
+      const url = `${window.location.origin}/ticketing-system?${AUTH_REDIRECT_PARAM}=${AUTH_REDIRECT_VALUE}`;
+      window.open(url, "_blank", "noopener,noreferrer");
       return;
     }
     const redirectTo = `${window.location.origin}/ticketing-system`;
@@ -150,31 +103,6 @@ function TicketingSystemPageInner() {
       return () => clearInterval(interval);
     }
   }, [userEmail, fetchUnreadIds]);
-
-  // Minimal UI when this tab is used as the auth popup
-  if (isAuthPopup) {
-    return (
-      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm text-center max-w-sm">
-          {popupStatus === "redirecting" && (
-            <>
-              <p className="text-gray-700 font-medium">Signing in…</p>
-              <p className="text-sm text-gray-500 mt-2">You will be redirected to Microsoft login.</p>
-            </>
-          )}
-          {popupStatus === "success" && (
-            <>
-              <p className="text-gray-700 font-medium">Success!</p>
-              <p className="text-sm text-gray-500 mt-2">Closing this window…</p>
-            </>
-          )}
-          {popupStatus === "idle" && (
-            <p className="text-gray-600">Loading…</p>
-          )}
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
@@ -227,21 +155,29 @@ function TicketingSystemPageInner() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8 flex-1 flex items-center justify-center">
-        {!userEmail ? (
+        {isAuthRedirect && !userEmail ? (
+          <div className="max-w-xl mx-auto text-center">
+            <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
+              <p className="text-gray-700 font-medium">Redirecting to Microsoft sign-in…</p>
+              <p className="text-sm text-gray-500 mt-2">You will return here after signing in.</p>
+            </div>
+          </div>
+        ) : !userEmail ? (
           <div className="max-w-xl mx-auto">
             <div className="bg-white border border-gray-200 rounded-xl p-6 sm:p-8 shadow-sm text-center">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                 Welcome to IT Ticketing System
               </h2>
               <p className="text-sm sm:text-base text-gray-600 mb-6">
-                Sign in with your Microsoft 365 account to create and manage IT
-                support tickets
+                {isInIframe
+                  ? "Open the app in your browser to sign in with Microsoft 365 and use the ticketing system."
+                  : "Sign in with your Microsoft 365 account to create and manage IT support tickets"}
               </p>
               <button
                 onClick={loginWithMicrosoft}
                 className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm hover:shadow-md cursor-pointer text-sm sm:text-base"
               >
-                🔐 Login with Microsoft 365
+                {isInIframe ? "Open in browser to sign in" : "🔐 Login with Microsoft 365"}
               </button>
 
               <div className="mt-6">
@@ -306,7 +242,7 @@ function TicketingSystemPageInner() {
   );
 }
 
-function TicketingSystemPageFallback() {
+function PageFallback() {
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center">
       <p className="text-gray-500">Loading…</p>
@@ -316,7 +252,7 @@ function TicketingSystemPageFallback() {
 
 export default function TicketingSystemPage() {
   return (
-    <Suspense fallback={<TicketingSystemPageFallback />}>
+    <Suspense fallback={<PageFallback />}>
       <TicketingSystemPageInner />
     </Suspense>
   );
