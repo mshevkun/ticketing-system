@@ -6,11 +6,24 @@ import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function TicketingSystemPage() {
+const AUTH_POPUP_PARAM = "auth";
+const AUTH_POPUP_VALUE = "popup";
+
+function TicketingSystemPageInner() {
+  const searchParams = useSearchParams();
+  const isAuthPopup = searchParams.get(AUTH_POPUP_PARAM) === AUTH_POPUP_VALUE;
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
+  const [isInIframe, setIsInIframe] = useState(false);
+  const [popupStatus, setPopupStatus] = useState<"idle" | "redirecting" | "success">("idle");
+
+  useEffect(() => {
+    setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+  }, []);
 
   // Get current user + subscribe to changes
   useEffect(() => {
@@ -31,18 +44,81 @@ export default function TicketingSystemPage() {
     };
   }, []);
 
+  // When opened as auth popup (?auth=popup): start OAuth or, after return, notify opener and close
+  useEffect(() => {
+    if (!isAuthPopup || typeof window === "undefined") return;
+
+    const run = async () => {
+      const hasHash = !!window.location.hash;
+      if (hasHash) {
+        setPopupStatus("success");
+        // Return from OAuth: Supabase may still be processing the hash. Wait for session then notify opener and close.
+        const waitForSession = (): Promise<void> =>
+          new Promise((resolve) => {
+            const check = async () => {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session) {
+                resolve();
+                return;
+              }
+              setTimeout(check, 100);
+            };
+            check();
+          });
+        const timeout = new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error("Auth timeout")), 15000)
+        );
+        await Promise.race([waitForSession(), timeout]);
+        try {
+          window.opener?.postMessage({ type: "auth-complete" }, window.location.origin);
+        } finally {
+          window.close();
+        }
+        return;
+      }
+      setPopupStatus("redirecting");
+      // First load in popup: start OAuth (redirect will happen in this window)
+      const redirectTo = `${window.location.origin}/ticketing-system?${AUTH_POPUP_PARAM}=${AUTH_POPUP_VALUE}`;
+      await supabase.auth.signInWithOAuth({
+        provider: "azure",
+        options: {
+          redirectTo,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+    };
+
+    run();
+  }, [isAuthPopup]);
+
+  // Listen for auth-complete from popup (when we opened the popup from inside an iframe)
+  useEffect(() => {
+    if (typeof window === "undefined" || !isInIframe) return;
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== "auth-complete") return;
+      supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [isInIframe]);
+
   // Sign in with Microsoft
   const loginWithMicrosoft = async () => {
-    // Get the current origin (works for both localhost and production)
+    if (isInIframe) {
+      // Teams / iframe: open OAuth in a popup so redirects work
+      const popupUrl = `${window.location.origin}/ticketing-system?${AUTH_POPUP_PARAM}=${AUTH_POPUP_VALUE}`;
+      const w = window.open(popupUrl, "auth", "width=600,height=600,scrollbars=yes");
+      if (!w) {
+        alert("Please allow popups for this site to sign in from Teams.");
+      }
+      return;
+    }
     const redirectTo = `${window.location.origin}/ticketing-system`;
-
     await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
         redirectTo,
-        queryParams: {
-          prompt: "select_account", // Force account selection screen
-        },
+        queryParams: { prompt: "select_account" },
       },
     });
   };
@@ -74,6 +150,31 @@ export default function TicketingSystemPage() {
       return () => clearInterval(interval);
     }
   }, [userEmail, fetchUnreadIds]);
+
+  // Minimal UI when this tab is used as the auth popup
+  if (isAuthPopup) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm text-center max-w-sm">
+          {popupStatus === "redirecting" && (
+            <>
+              <p className="text-gray-700 font-medium">Signing in…</p>
+              <p className="text-sm text-gray-500 mt-2">You will be redirected to Microsoft login.</p>
+            </>
+          )}
+          {popupStatus === "success" && (
+            <>
+              <p className="text-gray-700 font-medium">Success!</p>
+              <p className="text-sm text-gray-500 mt-2">Closing this window…</p>
+            </>
+          )}
+          {popupStatus === "idle" && (
+            <p className="text-gray-600">Loading…</p>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
@@ -202,5 +303,21 @@ export default function TicketingSystemPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function TicketingSystemPageFallback() {
+  return (
+    <main className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <p className="text-gray-500">Loading…</p>
+    </main>
+  );
+}
+
+export default function TicketingSystemPage() {
+  return (
+    <Suspense fallback={<TicketingSystemPageFallback />}>
+      <TicketingSystemPageInner />
+    </Suspense>
   );
 }
