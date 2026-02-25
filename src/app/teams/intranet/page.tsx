@@ -1,7 +1,7 @@
 import TeamsLandingPage from "@/components/TeamsLandingPage";
 
 const INTRANET_PORTAL_URL =
-  process.env.NEXT_PUBLIC_INTRANET_PORTAL_URL || "";
+  process.env.NEXT_PUBLIC_INTRANET_PORTAL_URL || "https://peopleusahope.sharepoint.com/sites/PeopleUSA";
 
 export default function TeamsIntranetPage() {
   return (
