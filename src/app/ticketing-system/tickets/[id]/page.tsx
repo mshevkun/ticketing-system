@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Comments from "@/components/Comments";
 import CommentForm from "@/components/CommentForm";
@@ -23,10 +23,16 @@ type Ticket = {
   attachments: string[] | null;
 };
 
+const RETURN_TO_KEY = "ticketingReturnTo";
+const FROM_SIGNIN_PARAM = "from";
+const FROM_SIGNIN_VALUE = "signin";
+
 export default function TicketPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+  const isFromSigninRedirect = searchParams.get(FROM_SIGNIN_PARAM) === FROM_SIGNIN_VALUE;
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,17 +64,6 @@ export default function TicketPage() {
     });
     return () => subscription.unsubscribe();
   }, []);
-
-  // Clear post-login redirect once we're on the ticket and logged in (avoid stale redirect later)
-  useEffect(() => {
-    if (userEmail && typeof window !== "undefined") {
-      try {
-        sessionStorage.removeItem("postLoginRedirect");
-      } catch {
-        // ignore
-      }
-    }
-  }, [userEmail]);
 
   // Load ticket details from Supabase
   const fetchTicket = useCallback(async () => {
@@ -106,9 +101,9 @@ export default function TicketPage() {
     if (id) fetchTicket();
   }, [id, fetchTicket]);
 
-  // Mark ticket as read when user views it
+  // Mark ticket as read when user views it (skip when just returned from sign-in so red dot stays for orientation)
   useEffect(() => {
-    if (!ticket || !userEmail || loading) return;
+    if (!ticket || !userEmail || loading || isFromSigninRedirect) return;
 
     const markRead = async () => {
       try {
@@ -122,7 +117,7 @@ export default function TicketPage() {
       }
     };
     markRead();
-  }, [id, ticket, userEmail, loading]);
+  }, [id, ticket, userEmail, loading, isFromSigninRedirect]);
 
   const canEditTicket =
     userEmail &&
@@ -266,14 +261,15 @@ export default function TicketPage() {
   const handleSignIn = () => {
     if (typeof window === "undefined") return;
     const path = window.location.pathname;
-    try {
-      sessionStorage.setItem("postLoginRedirect", path);
-    } catch {
-      // ignore
-    }
-    // Main page will see returnTo, start OAuth (redirect back to same URL), then after login redirect to this ticket
-    const search = new URLSearchParams({ returnTo: path });
-    router.push(`/ticketing-system?${search.toString()}`);
+    sessionStorage.setItem(RETURN_TO_KEY, path);
+    const redirectTo = window.location.href;
+    supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
+    });
   };
 
   return (
@@ -293,7 +289,8 @@ export default function TicketPage() {
             Sign in to reply, update status, and manage this ticket
           </p>
           <p className="text-xs sm:text-sm text-blue-700 mb-4">
-            You can view the ticket below. Sign in with your Microsoft 365 account to add messages, change status, or edit the ticket.
+            You can view the ticket below. Sign in with your Microsoft 365
+            account to add messages, change status, or edit the ticket.
           </p>
           <button
             type="button"
@@ -633,7 +630,9 @@ export default function TicketPage() {
           <CommentForm ticketId={ticket.id} />
         ) : (
           <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
-            <p className="text-sm text-gray-600 mb-3">Sign in to add a message or attach files.</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Sign in to add a message or attach files.
+            </p>
             <button
               type="button"
               onClick={handleSignIn}

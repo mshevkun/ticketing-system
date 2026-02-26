@@ -11,10 +11,14 @@ import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
 const AUTH_REDIRECT_VALUE = "redirect";
+const RETURN_TO_KEY = "ticketingReturnTo";
+const FROM_SIGNIN_PARAM = "from=signin";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
-  const isAuthRedirect = searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
+  const router = useRouter();
+  const isAuthRedirect =
+    searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
@@ -25,8 +29,6 @@ function TicketingSystemPageInner() {
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
   }, []);
-
-  const router = useRouter();
 
   // Get current user + subscribe to changes
   useEffect(() => {
@@ -39,7 +41,7 @@ function TicketingSystemPageInner() {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setUserEmail(session?.user?.email ?? null);
-      }
+      },
     );
 
     return () => {
@@ -47,55 +49,38 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  const returnTo = searchParams.get("returnTo");
-
-  // If user arrived with ?returnTo=/ticketing-system/tickets/xyz and is not logged in, start OAuth (redirect back to this URL so returnTo is preserved).
+  // When opened from Teams with ?auth=redirect: go straight to Microsoft sign-in (no login button screen).
   useEffect(() => {
-    if (typeof window === "undefined" || !returnTo) return;
-    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
-    if (!path.startsWith("/ticketing-system/") || path === "/ticketing-system") return;
-    if (userEmail !== null) return;
-    if (authRedirectStarted.current) return;
+    if (
+      !isAuthRedirect ||
+      userEmail !== null ||
+      typeof window === "undefined" ||
+      authRedirectStarted.current
+    )
+      return;
     authRedirectStarted.current = true;
-    const redirectToUrl = window.location.href;
+    const redirectTo = `${window.location.origin}/ticketing-system`;
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        redirectTo: redirectToUrl,
+        redirectTo,
         queryParams: { prompt: "select_account" },
       },
     });
-  }, [returnTo, userEmail]);
+  }, [isAuthRedirect, userEmail]);
 
-  // After sign-in: if we have returnTo in URL (or sessionStorage fallback) and user is logged in, redirect there.
+  // After sign-in, redirect back to the ticket page if user came from ticket sign-in banner
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const tryRedirect = async () => {
-      try {
-        const target =
-          (returnTo?.startsWith("/") ? returnTo : returnTo ? `/${returnTo}` : null) ||
-          sessionStorage.getItem("postLoginRedirect");
-        if (!target || target === "/ticketing-system") return;
-        if (!target.startsWith("/ticketing-system/")) return;
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        sessionStorage.removeItem("postLoginRedirect");
-        router.replace(target);
-      } catch {
-        // ignore
-      }
-    };
-
-    if (userEmail) {
-      tryRedirect();
-      return;
+    if (typeof window === "undefined" || !userEmail) return;
+    const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
+    if (!returnTo) return;
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
+    if (path.startsWith("/ticketing-system/tickets/")) {
+      const separator = path.includes("?") ? "&" : "?";
+      router.replace(`${path}${separator}${FROM_SIGNIN_PARAM}`);
     }
-    const t = setTimeout(tryRedirect, 800);
-    return () => clearTimeout(t);
-  }, [userEmail, router, returnTo]);
+  }, [userEmail, router]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {
@@ -123,7 +108,7 @@ function TicketingSystemPageInner() {
     if (!userEmail) return;
     try {
       const res = await fetch(
-        `/api/tickets/unread?userEmail=${encodeURIComponent(userEmail)}`
+        `/api/tickets/unread?userEmail=${encodeURIComponent(userEmail)}`,
       );
       if (res.ok) {
         const { unreadIds: ids } = await res.json();
@@ -149,19 +134,23 @@ function TicketingSystemPageInner() {
         <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-base sm:text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-1.5 sm:gap-2">
-              <Image 
-                src="/icons/people-usa-icon.png" 
-                alt="People USA" 
+              <Image
+                src="/icons/people-usa-icon.png"
+                alt="People USA"
                 width={24}
                 height={24}
                 className="flex-shrink-0 sm:w-8 sm:h-8"
                 unoptimized
               />
-              <span className="hidden sm:inline">People USA IT Ticketing System</span>
+              <span className="hidden sm:inline">
+                People USA IT Ticketing System
+              </span>
               <span className="sm:hidden">IT Ticketing System</span>
             </h1>
             <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 mt-0.5">
-              <span className="hidden sm:inline">Internal Help Desk System</span>
+              <span className="hidden sm:inline">
+                Internal Help Desk System
+              </span>
               <span className="sm:hidden">Help Desk</span>
             </p>
           </div>
@@ -172,12 +161,10 @@ function TicketingSystemPageInner() {
                   <span className="hidden sm:inline">Welcome, </span>
                   <span className="sm:hidden">Hi, </span>
                   <span className="hidden md:inline">{userEmail}</span>
-                  <span className="md:hidden">{userEmail.split('@')[0]}</span>
+                  <span className="md:hidden">{userEmail.split("@")[0]}</span>
                 </p>
                 <p className="text-[10px] sm:text-xs text-gray-500">
-                  {IT_EMAILS.includes(userEmail)
-                    ? "IT Staff"
-                    : "Employee"}
+                  {IT_EMAILS.includes(userEmail) ? "IT Staff" : "Employee"}
                 </p>
               </div>
               <button
@@ -196,8 +183,12 @@ function TicketingSystemPageInner() {
         {isAuthRedirect && !userEmail ? (
           <div className="max-w-xl mx-auto text-center">
             <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm">
-              <p className="text-gray-700 font-medium">Redirecting to Microsoft sign-in…</p>
-              <p className="text-sm text-gray-500 mt-2">You will return here after signing in.</p>
+              <p className="text-gray-700 font-medium">
+                Redirecting to Microsoft sign-in…
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                You will return here after signing in.
+              </p>
             </div>
           </div>
         ) : !userEmail ? (
@@ -215,7 +206,9 @@ function TicketingSystemPageInner() {
                 onClick={loginWithMicrosoft}
                 className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors shadow-sm hover:shadow-md cursor-pointer text-sm sm:text-base"
               >
-                {isInIframe ? "Open in browser to sign in" : "🔐 Login with Microsoft 365"}
+                {isInIframe
+                  ? "Open in browser to sign in"
+                  : "🔐 Login with Microsoft 365"}
               </button>
 
               <div className="mt-6">
