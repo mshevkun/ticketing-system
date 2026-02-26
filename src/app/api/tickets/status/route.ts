@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { sendEmailsWithRateLimit } from "@/lib/email";
-import { IT_EMAILS } from "@/lib/constants";
+import { IT_EMAILS, getTicketViewUrl } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
@@ -58,12 +58,13 @@ export async function PATCH(req: Request) {
     // Notify requester + all IT staff (rate-limited to respect Resend 2 req/sec)
     const statusLabel = STATUS_LABELS[status] || status;
     const subject = `Ticket status updated: ${ticket.title}`;
+    const ticketUrl = getTicketViewUrl(ticketId);
 
     const requesterHtml = `
       <p>Hello,</p>
       <p>Your IT ticket <strong>${ticket.title}</strong> has been updated.</p>
       <p><strong>New status:</strong> ${statusLabel}</p>
-      <p>You can view the ticket in the People USA IT Ticketing System.</p>
+      <p><a href="${ticketUrl}">View your ticket</a></p>
       <p>— IT Support</p>
     `;
 
@@ -72,7 +73,7 @@ export async function PATCH(req: Request) {
       <p><strong>Ticket:</strong> ${ticket.title}</p>
       <p><strong>New status:</strong> ${statusLabel}</p>
       <p><strong>Updated by:</strong> ${operator}</p>
-      <p>View the ticket in the People USA IT Ticketing System.</p>
+      <p><a href="${ticketUrl}">View this ticket</a></p>
       <p>— IT Ticketing System</p>
     `;
 

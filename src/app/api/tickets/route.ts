@@ -4,7 +4,7 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { sendEmailsWithRateLimit } from "@/lib/email";
-import { IT_EMAILS } from "@/lib/constants";
+import { IT_EMAILS, getTicketViewUrl } from "@/lib/constants";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -194,17 +194,19 @@ export async function POST(req: Request) {
       }
 
       // 4) Notifications: requester (confirmation) + IT staff (new ticket)
+      const ticketUrl = getTicketViewUrl(ticket.id);
       const requesterConfirmHtml = `
         <p>Hello,</p>
         <p>Your IT ticket <strong>${ticket.title}</strong> has been submitted successfully.</p>
-        <p>Our team will review it and get back to you. You can track the ticket in the People USA IT Ticketing System.</p>
+        <p>Our team will review it and get back to you.</p>
+        <p><a href="${ticketUrl}">View your ticket</a></p>
         <p>— IT Support</p>
       `;
       const itAlertHtml = `
         <p>A new ticket has been submitted.</p>
         <p><strong>Title:</strong> ${ticket.title}</p>
         <p><strong>From:</strong> ${ticket.requester_email}</p>
-        <p>View and respond in the People USA IT Ticketing System.</p>
+        <p><a href="${ticketUrl}">View and respond to this ticket</a></p>
         <p>— IT Ticketing System</p>
       `;
       const ticketEmails = [
@@ -255,17 +257,19 @@ export async function POST(req: Request) {
     }
 
     const ticket = { id: ins.data.id, ...parsed.data };
+    const ticketUrl = getTicketViewUrl(ticket.id);
     const requesterConfirmHtml = `
       <p>Hello,</p>
       <p>Your IT ticket <strong>${ticket.title}</strong> has been submitted successfully.</p>
-      <p>Our team will review it and get back to you. You can track the ticket in the People USA IT Ticketing System.</p>
+      <p>Our team will review it and get back to you.</p>
+      <p><a href="${ticketUrl}">View your ticket</a></p>
       <p>— IT Support</p>
     `;
     const itAlertHtml = `
       <p>A new ticket has been submitted.</p>
       <p><strong>Title:</strong> ${ticket.title}</p>
       <p><strong>From:</strong> ${ticket.requester_email}</p>
-      <p>View and respond in the People USA IT Ticketing System.</p>
+      <p><a href="${ticketUrl}">View and respond to this ticket</a></p>
       <p>— IT Ticketing System</p>
     `;
     const jsonEmails = [

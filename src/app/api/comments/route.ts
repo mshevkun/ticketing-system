@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { sendEmailsWithRateLimit } from "@/lib/email";
-import { IT_EMAILS } from "@/lib/constants";
+import { IT_EMAILS, getTicketViewUrl } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
@@ -93,6 +93,7 @@ export async function POST(req: Request) {
       content.length > 200 ? content.slice(0, 200) + "…" : content;
 
     const emailItems: Array<{ to: string; subject: string; html: string }> = [];
+    const ticketUrl = getTicketViewUrl(ticketId);
 
     if (isIT) {
       const requesterHtml = `
@@ -100,7 +101,7 @@ export async function POST(req: Request) {
         <p>IT Support has replied to your ticket <strong>${ticket.title}</strong>.</p>
         <p><strong>Message:</strong></p>
         <p>${contentPreview.replace(/\n/g, "<br>")}</p>
-        <p>View the full conversation in the People USA IT Ticketing System.</p>
+        <p><a href="${ticketUrl}">View the full conversation and reply</a></p>
         <p>— IT Ticketing System</p>
       `;
       emailItems.push({
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
       <p><strong>From:</strong> ${authorEmail}</p>
       <p><strong>Message:</strong></p>
       <p>${contentPreview.replace(/\n/g, "<br>")}</p>
-      <p>View and respond in the People USA IT Ticketing System.</p>
+      <p><a href="${ticketUrl}">View and respond to this ticket</a></p>
       <p>— IT Ticketing System</p>
     `;
     for (const itEmail of IT_EMAILS) {
