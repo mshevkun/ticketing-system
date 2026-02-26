@@ -6,16 +6,21 @@ import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
 const AUTH_REDIRECT_VALUE = "redirect";
+const RETURN_TO_PARAM = "returnTo";
+const FROM_SIGNIN_QUERY = "from=signin";
+const TICKET_PATH_PREFIX = "/ticketing-system/tickets/";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const isAuthRedirect =
     searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
+  const returnTo = searchParams.get(RETURN_TO_PARAM);
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
@@ -46,7 +51,7 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened from Teams with ?auth=redirect: go straight to Microsoft sign-in (no login button screen).
+  // When opened with ?auth=redirect (and optional ?returnTo=): go to Microsoft sign-in; redirectTo = full URL so we get returnTo back after login.
   useEffect(() => {
     if (
       !isAuthRedirect ||
@@ -56,7 +61,7 @@ function TicketingSystemPageInner() {
     )
       return;
     authRedirectStarted.current = true;
-    const redirectTo = `${window.location.origin}/ticketing-system`;
+    const redirectTo = window.location.href;
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
@@ -65,6 +70,15 @@ function TicketingSystemPageInner() {
       },
     });
   }, [isAuthRedirect, userEmail]);
+
+  // After login: if we have returnTo in the URL (e.g. from ticket sign-in banner), redirect to that ticket.
+  useEffect(() => {
+    if (!userEmail || !returnTo) return;
+    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
+    if (!path.startsWith(TICKET_PATH_PREFIX)) return;
+    const separator = path.includes("?") ? "&" : "?";
+    router.replace(`${path}${separator}${FROM_SIGNIN_QUERY}`);
+  }, [userEmail, returnTo, router]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {

@@ -253,16 +253,10 @@ export default function TicketPage() {
   };
 
   const handleSignIn = () => {
-    const redirectTo =
-      typeof window !== "undefined" ? window.location.href : "";
-    if (!redirectTo) return;
-    supabase.auth.signInWithOAuth({
-      provider: "azure",
-      options: {
-        redirectTo,
-        queryParams: { prompt: "select_account" },
-      },
-    });
+    if (typeof window === "undefined") return;
+    const path = window.location.pathname;
+    const url = `/ticketing-system?auth=redirect&returnTo=${encodeURIComponent(path)}`;
+    window.location.href = url;
   };
 
   return (
