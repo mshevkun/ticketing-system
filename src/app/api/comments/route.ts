@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     if (!contentType.includes("multipart/form-data")) {
       return NextResponse.json(
         { error: "Content-Type must be multipart/form-data" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     if (!ticketId || !authorEmail || !content) {
       return NextResponse.json(
         { error: "ticket_id, author_email, and content are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -58,12 +58,14 @@ export async function POST(req: Request) {
     if (insertError || !comment) {
       return NextResponse.json(
         { error: "Failed to create comment", details: insertError?.message },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     const files = form.getAll("attachments") as File[];
-    const validFiles = files.filter((f) => f && f instanceof File && f.size > 0);
+    const validFiles = files.filter(
+      (f) => f && f instanceof File && f.size > 0,
+    );
     const uploadedPaths: string[] = [];
 
     for (const file of validFiles) {
@@ -132,13 +134,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       { ok: true, comment_id: comment.id, attachments: uploadedPaths.length },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
       { error: "Failed to create comment", details: msg },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

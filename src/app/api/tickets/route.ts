@@ -21,7 +21,7 @@ const REQUIRED_ENV = [
 function jsonError(
   message: string,
   status = 500,
-  extra?: Record<string, unknown>
+  extra?: Record<string, unknown>,
 ) {
   return NextResponse.json({ error: { message, ...extra } }, { status });
 }
@@ -210,7 +210,11 @@ export async function POST(req: Request) {
         <p>— IT Ticketing System</p>
       `;
       const ticketEmails = [
-        { to: ticket.requester_email, subject: `Ticket submitted: ${ticket.title}`, html: requesterConfirmHtml },
+        {
+          to: ticket.requester_email,
+          subject: `Ticket submitted: ${ticket.title}`,
+          html: requesterConfirmHtml,
+        },
         ...IT_EMAILS.map((itEmail) => ({
           to: itEmail,
           subject: `New ticket: ${ticket.title}`,
@@ -225,7 +229,7 @@ export async function POST(req: Request) {
           uploaded: uploadedPaths.length,
           uploadErrors: uploadErrors.length ? uploadErrors : undefined,
         },
-        { status: 201 }
+        { status: 201 },
       );
     }
 
@@ -273,7 +277,11 @@ export async function POST(req: Request) {
       <p>— IT Ticketing System</p>
     `;
     const jsonEmails = [
-      { to: ticket.requester_email, subject: `Ticket submitted: ${ticket.title}`, html: requesterConfirmHtml },
+      {
+        to: ticket.requester_email,
+        subject: `Ticket submitted: ${ticket.title}`,
+        html: requesterConfirmHtml,
+      },
       ...IT_EMAILS.map((itEmail) => ({
         to: itEmail,
         subject: `New ticket: ${ticket.title}`,
@@ -289,7 +297,7 @@ export async function POST(req: Request) {
     return jsonError(
       "Unexpected error",
       500,
-      DEBUG ? { message: msg } : undefined
+      DEBUG ? { message: msg } : undefined,
     );
   }
 }

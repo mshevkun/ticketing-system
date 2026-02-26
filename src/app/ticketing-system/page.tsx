@@ -47,35 +47,55 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // After sign-in redirect: if user landed here but wanted to go to a specific ticket (or other page), send them there
-  useEffect(() => {
-    if (typeof window === "undefined" || userEmail === null) return;
-    try {
-      const returnTo = sessionStorage.getItem("postLoginRedirect");
-      if (!returnTo) return;
-      sessionStorage.removeItem("postLoginRedirect");
-      // Only allow redirects within our app (avoid open redirect)
-      if (returnTo.startsWith("/ticketing-system/") && returnTo !== "/ticketing-system") {
-        router.replace(returnTo);
-      }
-    } catch {
-      // ignore
-    }
-  }, [userEmail, router]);
+  const returnTo = searchParams.get("returnTo");
 
-  // When opened from Teams with ?auth=redirect: go straight to Microsoft sign-in (no login button screen).
+  // If user arrived with ?returnTo=/ticketing-system/tickets/xyz and is not logged in, start OAuth (redirect back to this URL so returnTo is preserved).
   useEffect(() => {
-    if (!isAuthRedirect || userEmail !== null || typeof window === "undefined" || authRedirectStarted.current) return;
+    if (typeof window === "undefined" || !returnTo) return;
+    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
+    if (!path.startsWith("/ticketing-system/") || path === "/ticketing-system") return;
+    if (userEmail !== null) return;
+    if (authRedirectStarted.current) return;
     authRedirectStarted.current = true;
-    const redirectTo = `${window.location.origin}/ticketing-system`;
+    const redirectToUrl = window.location.href;
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        redirectTo,
+        redirectTo: redirectToUrl,
         queryParams: { prompt: "select_account" },
       },
     });
-  }, [isAuthRedirect, userEmail]);
+  }, [returnTo, userEmail]);
+
+  // After sign-in: if we have returnTo in URL (or sessionStorage fallback) and user is logged in, redirect there.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const tryRedirect = async () => {
+      try {
+        const target =
+          (returnTo?.startsWith("/") ? returnTo : returnTo ? `/${returnTo}` : null) ||
+          sessionStorage.getItem("postLoginRedirect");
+        if (!target || target === "/ticketing-system") return;
+        if (!target.startsWith("/ticketing-system/")) return;
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        sessionStorage.removeItem("postLoginRedirect");
+        router.replace(target);
+      } catch {
+        // ignore
+      }
+    };
+
+    if (userEmail) {
+      tryRedirect();
+      return;
+    }
+    const t = setTimeout(tryRedirect, 800);
+    return () => clearTimeout(t);
+  }, [userEmail, router, returnTo]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {

@@ -265,21 +265,15 @@ export default function TicketPage() {
 
   const handleSignIn = () => {
     if (typeof window === "undefined") return;
-    const redirectTo = window.location.href;
     const path = window.location.pathname;
-    // Fallback: if Supabase redirects to app root instead of this URL, main page will send user back here
     try {
       sessionStorage.setItem("postLoginRedirect", path);
     } catch {
       // ignore
     }
-    supabase.auth.signInWithOAuth({
-      provider: "azure",
-      options: {
-        redirectTo,
-        queryParams: { prompt: "select_account" },
-      },
-    });
+    // Main page will see returnTo, start OAuth (redirect back to same URL), then after login redirect to this ticket
+    const search = new URLSearchParams({ returnTo: path });
+    router.push(`/ticketing-system?${search.toString()}`);
   };
 
   return (
