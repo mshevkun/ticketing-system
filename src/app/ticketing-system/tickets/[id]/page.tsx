@@ -31,6 +31,7 @@ export default function TicketPage() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [deleting, setDeleting] = useState(false);
   const [addingAttachments, setAddingAttachments] = useState(false);
@@ -42,13 +43,20 @@ export default function TicketPage() {
   const [savingDescription, setSavingDescription] = useState(false);
   const ticketAttachmentInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Fetch current user email
+  // Fetch current user email and subscribe to auth changes (e.g. after sign-in redirect)
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUserEmail(data.user?.email ?? null);
+      setAuthChecked(true);
     };
     getUser();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   // Load ticket details from Supabase
@@ -244,6 +252,18 @@ export default function TicketPage() {
     return new Date(dateString).toLocaleString();
   };
 
+  const handleSignIn = () => {
+    const redirectTo = typeof window !== "undefined" ? window.location.href : "";
+    if (!redirectTo) return;
+    supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
+    });
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6">
       {/* Back button */}
@@ -253,6 +273,25 @@ export default function TicketPage() {
       >
         <span>←</span> Back to Tickets
       </button>
+
+      {/* Sign-in prompt when not logged in (e.g. arrived from email link) */}
+      {authChecked && !userEmail && ticket && (
+        <div className="mb-4 sm:mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-5 shadow-sm">
+          <p className="text-sm sm:text-base text-blue-900 font-medium mb-2">
+            Sign in to reply, update status, and manage this ticket
+          </p>
+          <p className="text-xs sm:text-sm text-blue-700 mb-4">
+            You can view the ticket below. Sign in with your Microsoft 365 account to add messages, change status, or edit the ticket.
+          </p>
+          <button
+            type="button"
+            onClick={handleSignIn}
+            className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors cursor-pointer"
+          >
+            Sign in with Microsoft 365
+          </button>
+        </div>
+      )}
 
       {/* Ticket Header */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm mb-4 sm:mb-6">
@@ -578,7 +617,20 @@ export default function TicketPage() {
           ticketId={ticket.id}
           requesterEmail={ticket.requester_email}
         />
-        <CommentForm ticketId={ticket.id} />
+        {userEmail ? (
+          <CommentForm ticketId={ticket.id} />
+        ) : (
+          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+            <p className="text-sm text-gray-600 mb-3">Sign in to add a message or attach files.</p>
+            <button
+              type="button"
+              onClick={handleSignIn}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+            >
+              Sign in with Microsoft 365
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
