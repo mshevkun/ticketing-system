@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Comments from "@/components/Comments";
 import CommentForm from "@/components/CommentForm";
@@ -23,16 +23,10 @@ type Ticket = {
   attachments: string[] | null;
 };
 
-const RETURN_TO_KEY = "ticketingReturnTo";
-const FROM_SIGNIN_PARAM = "from";
-const FROM_SIGNIN_VALUE = "signin";
-
 export default function TicketPage() {
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const id = params?.id as string;
-  const isFromSigninRedirect = searchParams.get(FROM_SIGNIN_PARAM) === FROM_SIGNIN_VALUE;
 
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,9 +95,9 @@ export default function TicketPage() {
     if (id) fetchTicket();
   }, [id, fetchTicket]);
 
-  // Mark ticket as read when user views it (skip when just returned from sign-in so red dot stays for orientation)
+  // Mark ticket as read when user views it
   useEffect(() => {
-    if (!ticket || !userEmail || loading || isFromSigninRedirect) return;
+    if (!ticket || !userEmail || loading) return;
 
     const markRead = async () => {
       try {
@@ -117,7 +111,7 @@ export default function TicketPage() {
       }
     };
     markRead();
-  }, [id, ticket, userEmail, loading, isFromSigninRedirect]);
+  }, [id, ticket, userEmail, loading]);
 
   const canEditTicket =
     userEmail &&
@@ -259,10 +253,9 @@ export default function TicketPage() {
   };
 
   const handleSignIn = () => {
-    if (typeof window === "undefined") return;
-    const path = window.location.pathname;
-    sessionStorage.setItem(RETURN_TO_KEY, path);
-    const redirectTo = window.location.href;
+    const redirectTo =
+      typeof window !== "undefined" ? window.location.href : "";
+    if (!redirectTo) return;
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {

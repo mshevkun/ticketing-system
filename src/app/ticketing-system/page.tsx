@@ -6,17 +6,14 @@ import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
 const AUTH_REDIRECT_VALUE = "redirect";
-const RETURN_TO_KEY = "ticketingReturnTo";
-const FROM_SIGNIN_PARAM = "from=signin";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const isAuthRedirect =
     searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
 
@@ -68,19 +65,6 @@ function TicketingSystemPageInner() {
       },
     });
   }, [isAuthRedirect, userEmail]);
-
-  // After sign-in, redirect back to the ticket page if user came from ticket sign-in banner
-  useEffect(() => {
-    if (typeof window === "undefined" || !userEmail) return;
-    const returnTo = sessionStorage.getItem(RETURN_TO_KEY);
-    if (!returnTo) return;
-    sessionStorage.removeItem(RETURN_TO_KEY);
-    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
-    if (path.startsWith("/ticketing-system/tickets/")) {
-      const separator = path.includes("?") ? "&" : "?";
-      router.replace(`${path}${separator}${FROM_SIGNIN_PARAM}`);
-    }
-  }, [userEmail, router]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {
