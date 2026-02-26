@@ -32,6 +32,15 @@ function TicketingSystemPageInner() {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    console.log("[List page] Loaded:", {
+      href: window.location.href,
+      search: window.location.search,
+      hasHash: !!window.location.hash,
+    });
+  }, []);
+
   // Get current user + subscribe to changes
   useEffect(() => {
     const getUser = async () => {
@@ -69,6 +78,12 @@ function TicketingSystemPageInner() {
     const redirectTo = useCallbackWithNext
       ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(pathForReturn)}`
       : `${window.location.origin}/ticketing-system`;
+    console.log("[List OAuth] Starting sign-in with redirect:", {
+      returnTo,
+      pathForReturn,
+      useCallbackWithNext,
+      redirectTo,
+    });
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {

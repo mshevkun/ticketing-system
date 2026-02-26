@@ -20,8 +20,17 @@ function AuthCallbackInner() {
       ? (nextRaw.startsWith("/") ? nextRaw : `/${nextRaw}`)
       : "";
 
+    console.log("[Auth callback] Page loaded:", {
+      href: typeof window !== "undefined" ? window.location.href : "",
+      search: typeof window !== "undefined" ? window.location.search : "",
+      nextRaw,
+      path,
+      hasHash: typeof window !== "undefined" ? !!window.location.hash : false,
+    });
+
     const go = (url: string) => {
       redirectDone.current = true;
+      console.log("[Auth callback] Redirecting to:", url);
       window.location.replace(url);
     };
 
@@ -30,12 +39,14 @@ function AuthCallbackInner() {
         const separator = path.includes("?") ? "&" : "?";
         go(`${path}${separator}${FROM_SIGNIN_QUERY}`);
       } else {
+        console.log("[Auth callback] No ticket path, going to list. path:", path);
         go(DEFAULT_REDIRECT);
       }
     };
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log("[Auth callback] onAuthStateChange:", event, !!session);
         if (event === "INITIAL_SESSION" || (event === "SIGNED_IN" && session)) {
           authListener.subscription.unsubscribe();
           establishAndRedirect();
@@ -43,12 +54,14 @@ function AuthCallbackInner() {
       },
     );
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("[Auth callback] getSession result:", !!session);
       if (session) {
         authListener.subscription.unsubscribe();
         establishAndRedirect();
       }
     });
     const fallback = setTimeout(() => {
+      console.log("[Auth callback] Fallback timeout (3s), redirecting anyway");
       authListener.subscription.unsubscribe();
       establishAndRedirect();
     }, 3000);

@@ -256,6 +256,7 @@ export default function TicketPage() {
     if (typeof window === "undefined") return;
     const path = window.location.pathname;
     const url = `/ticketing-system?auth=redirect&returnTo=${encodeURIComponent(path)}`;
+    console.log("[Ticket Sign-in] Navigating to list with returnTo:", { path, url });
     window.location.href = url;
   };
 
