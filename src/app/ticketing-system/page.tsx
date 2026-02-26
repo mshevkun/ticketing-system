@@ -15,6 +15,7 @@ const RETURN_TO_PARAM = "returnTo";
 const RETURN_TO_STORAGE_KEY = "ticketingReturnTo";
 const FROM_SIGNIN_QUERY = "from=signin";
 const TICKET_PATH_PREFIX = "/ticketing-system/tickets/";
+const OAUTH_STATE_PREFIX = "tk:"; // our state so we can detect and parse it
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
@@ -28,9 +29,30 @@ function TicketingSystemPageInner() {
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
   const [isInIframe, setIsInIframe] = useState(false);
   const authRedirectStarted = useRef(false);
+  /** returnTo from OAuth callback hash (survives when sessionStorage doesn't) */
+  const returnToFromHashRef = useRef<string | null>(null);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
+  }, []);
+
+  // Parse OAuth callback hash for our state (returnTo) immediately on load so we have it before anything clears the hash.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (!hash) return;
+    const params = new URLSearchParams(hash.slice(1));
+    const state = params.get("state");
+    if (!state || !state.startsWith(OAUTH_STATE_PREFIX)) return;
+    try {
+      const decoded = decodeURIComponent(state.slice(OAUTH_STATE_PREFIX.length));
+      const path = decoded.startsWith("/") ? decoded : `/${decoded}`;
+      if (path.startsWith(TICKET_PATH_PREFIX)) {
+        returnToFromHashRef.current = path;
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   // Get current user + subscribe to changes
@@ -52,7 +74,7 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened with ?auth=redirect (and optional ?returnTo=): persist returnTo and go to Microsoft sign-in. Use base URL for redirectTo so Supabase allowlist works; we'll read returnTo from sessionStorage after login.
+  // When opened with ?auth=redirect (and optional ?returnTo=): pass returnTo in OAuth state (and sessionStorage as fallback) and go to Microsoft sign-in.
   useEffect(() => {
     if (
       !isAuthRedirect ||
@@ -62,6 +84,9 @@ function TicketingSystemPageInner() {
     )
       return;
     authRedirectStarted.current = true;
+    const pathForState = returnTo
+      ? (returnTo.startsWith("/") ? returnTo : `/${returnTo}`)
+      : "";
     if (returnTo) {
       try {
         sessionStorage.setItem(RETURN_TO_STORAGE_KEY, returnTo);
@@ -70,18 +95,26 @@ function TicketingSystemPageInner() {
       }
     }
     const redirectTo = `${window.location.origin}/ticketing-system`;
+    const options: { redirectTo: string; queryParams: { prompt: string }; state?: string } = {
+      redirectTo,
+      queryParams: { prompt: "select_account" },
+    };
+    if (pathForState && pathForState.startsWith(TICKET_PATH_PREFIX)) {
+      options.state = OAUTH_STATE_PREFIX + encodeURIComponent(pathForState);
+    }
     supabase.auth.signInWithOAuth({
       provider: "azure",
-      options: {
-        redirectTo,
-        queryParams: { prompt: "select_account" },
-      },
+      options,
     });
   }, [isAuthRedirect, userEmail, returnTo]);
 
-  // After login: redirect to ticket if we have returnTo in the URL or in sessionStorage (set before OAuth).
+  // After login: redirect to ticket if we have returnTo from OAuth hash, URL, or sessionStorage.
   useEffect(() => {
     if (!userEmail || typeof window === "undefined") return;
+    const pathFromHash = returnToFromHashRef.current;
+    if (pathFromHash) {
+      returnToFromHashRef.current = null;
+    }
     const pathParam = returnTo;
     let pathStored: string | null = null;
     try {
@@ -90,7 +123,7 @@ function TicketingSystemPageInner() {
     } catch {
       // ignore
     }
-    const pathRaw = pathParam || pathStored;
+    const pathRaw = pathFromHash || pathParam || pathStored;
     if (!pathRaw) return;
     const path = pathRaw.startsWith("/") ? pathRaw : `/${pathRaw}`;
     if (!path.startsWith(TICKET_PATH_PREFIX)) return;
