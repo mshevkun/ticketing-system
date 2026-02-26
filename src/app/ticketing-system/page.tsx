@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
@@ -26,6 +26,8 @@ function TicketingSystemPageInner() {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
   }, []);
 
+  const router = useRouter();
+
   // Get current user + subscribe to changes
   useEffect(() => {
     const getUser = async () => {
@@ -44,6 +46,22 @@ function TicketingSystemPageInner() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  // After sign-in redirect: if user landed here but wanted to go to a specific ticket (or other page), send them there
+  useEffect(() => {
+    if (typeof window === "undefined" || userEmail === null) return;
+    try {
+      const returnTo = sessionStorage.getItem("postLoginRedirect");
+      if (!returnTo) return;
+      sessionStorage.removeItem("postLoginRedirect");
+      // Only allow redirects within our app (avoid open redirect)
+      if (returnTo.startsWith("/ticketing-system/") && returnTo !== "/ticketing-system") {
+        router.replace(returnTo);
+      }
+    } catch {
+      // ignore
+    }
+  }, [userEmail, router]);
 
   // When opened from Teams with ?auth=redirect: go straight to Microsoft sign-in (no login button screen).
   useEffect(() => {

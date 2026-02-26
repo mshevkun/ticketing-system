@@ -59,6 +59,17 @@ export default function TicketPage() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Clear post-login redirect once we're on the ticket and logged in (avoid stale redirect later)
+  useEffect(() => {
+    if (userEmail && typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("postLoginRedirect");
+      } catch {
+        // ignore
+      }
+    }
+  }, [userEmail]);
+
   // Load ticket details from Supabase
   const fetchTicket = useCallback(async () => {
     setLoading(true);
@@ -253,8 +264,15 @@ export default function TicketPage() {
   };
 
   const handleSignIn = () => {
-    const redirectTo = typeof window !== "undefined" ? window.location.href : "";
-    if (!redirectTo) return;
+    if (typeof window === "undefined") return;
+    const redirectTo = window.location.href;
+    const path = window.location.pathname;
+    // Fallback: if Supabase redirects to app root instead of this URL, main page will send user back here
+    try {
+      sessionStorage.setItem("postLoginRedirect", path);
+    } catch {
+      // ignore
+    }
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
