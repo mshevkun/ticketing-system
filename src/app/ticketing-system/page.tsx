@@ -12,6 +12,7 @@ import { Suspense } from "react";
 const AUTH_REDIRECT_PARAM = "auth";
 const AUTH_REDIRECT_VALUE = "redirect";
 const RETURN_TO_PARAM = "returnTo";
+const RETURN_TO_STORAGE_KEY = "ticketingReturnTo";
 const FROM_SIGNIN_QUERY = "from=signin";
 const TICKET_PATH_PREFIX = "/ticketing-system/tickets/";
 
@@ -51,7 +52,7 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened with ?auth=redirect (and optional ?returnTo=): go to Microsoft sign-in; redirectTo = full URL so we get returnTo back after login.
+  // When opened with ?auth=redirect (and optional ?returnTo=): persist returnTo and go to Microsoft sign-in. Use base URL for redirectTo so Supabase allowlist works; we'll read returnTo from sessionStorage after login.
   useEffect(() => {
     if (
       !isAuthRedirect ||
@@ -61,7 +62,14 @@ function TicketingSystemPageInner() {
     )
       return;
     authRedirectStarted.current = true;
-    const redirectTo = window.location.href;
+    if (returnTo) {
+      try {
+        sessionStorage.setItem(RETURN_TO_STORAGE_KEY, returnTo);
+      } catch {
+        // ignore
+      }
+    }
+    const redirectTo = `${window.location.origin}/ticketing-system`;
     supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
@@ -69,13 +77,30 @@ function TicketingSystemPageInner() {
         queryParams: { prompt: "select_account" },
       },
     });
-  }, [isAuthRedirect, userEmail]);
+  }, [isAuthRedirect, userEmail, returnTo]);
 
-  // After login: if we have returnTo in the URL (e.g. from ticket sign-in banner), redirect to that ticket.
+  // After login: redirect to ticket if we have returnTo in the URL or in sessionStorage (set before OAuth).
   useEffect(() => {
-    if (!userEmail || !returnTo) return;
-    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
+    if (!userEmail || typeof window === "undefined") return;
+    const pathParam = returnTo;
+    let pathStored: string | null = null;
+    try {
+      pathStored = sessionStorage.getItem(RETURN_TO_STORAGE_KEY);
+      if (pathStored) sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    const pathRaw = pathParam || pathStored;
+    if (!pathRaw) return;
+    const path = pathRaw.startsWith("/") ? pathRaw : `/${pathRaw}`;
     if (!path.startsWith(TICKET_PATH_PREFIX)) return;
+    if (pathParam) {
+      try {
+        sessionStorage.removeItem(RETURN_TO_STORAGE_KEY);
+      } catch {
+        // ignore
+      }
+    }
     const separator = path.includes("?") ? "&" : "?";
     router.replace(`${path}${separator}${FROM_SIGNIN_QUERY}`);
   }, [userEmail, returnTo, router]);
