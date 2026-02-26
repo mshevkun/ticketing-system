@@ -4,9 +4,10 @@ import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
+import { getAndClearReturnToCookie, setReturnToCookie } from "@/lib/authReturnTo";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
@@ -14,29 +15,9 @@ const AUTH_REDIRECT_VALUE = "redirect";
 const RETURN_TO_PARAM = "returnTo";
 const FROM_SIGNIN_QUERY = "from=signin";
 const TICKET_PATH_PREFIX = "/ticketing-system/tickets/";
-const RETURN_TO_COOKIE = "ticketingReturnTo";
-const RETURN_TO_COOKIE_MAX_AGE = 300; // 5 min
-
-function getReturnToFromCookie(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(
-    new RegExp("(?:^|; )" + RETURN_TO_COOKIE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "=([^;]*)"),
-  );
-  const value = match ? decodeURIComponent(match[1]) : null;
-  if (value) {
-    document.cookie = `${RETURN_TO_COOKIE}=; path=/; max-age=0`;
-  }
-  return value;
-}
-
-function setReturnToCookie(path: string) {
-  if (typeof document === "undefined") return;
-  document.cookie = `${RETURN_TO_COOKIE}=${encodeURIComponent(path)}; path=/; max-age=${RETURN_TO_COOKIE_MAX_AGE}; SameSite=Lax`;
-}
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const isAuthRedirect =
     searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
   const returnTo = searchParams.get(RETURN_TO_PARAM);
@@ -57,7 +38,7 @@ function TicketingSystemPageInner() {
     if (typeof window === "undefined") return;
     const hash = window.location.hash;
     if (hash) {
-      const fromCookie = getReturnToFromCookie();
+      const fromCookie = getAndClearReturnToCookie();
       if (fromCookie) {
         const path = fromCookie.startsWith("/") ? fromCookie : `/${fromCookie}`;
         if (path.startsWith(TICKET_PATH_PREFIX)) {
@@ -112,7 +93,7 @@ function TicketingSystemPageInner() {
     });
   }, [isAuthRedirect, userEmail, returnTo]);
 
-  // After login: redirect to ticket if we have returnTo in URL or from cookie (set before OAuth).
+  // After login: redirect to ticket if we have returnTo in URL or from cookie (set before OAuth). Use full page navigation so hash/SPA state doesn't block it.
   useEffect(() => {
     if (!userEmail || typeof window === "undefined") return;
     const fromCookie = returnToFromCookieRef.current;
@@ -122,8 +103,9 @@ function TicketingSystemPageInner() {
     const path = pathRaw.startsWith("/") ? pathRaw : `/${pathRaw}`;
     if (!path.startsWith(TICKET_PATH_PREFIX)) return;
     const separator = path.includes("?") ? "&" : "?";
-    router.replace(`${path}${separator}${FROM_SIGNIN_QUERY}`);
-  }, [userEmail, returnTo, router]);
+    const target = `${path}${separator}${FROM_SIGNIN_QUERY}`;
+    window.location.replace(target);
+  }, [userEmail, returnTo]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {
