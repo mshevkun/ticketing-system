@@ -4,7 +4,7 @@ import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense } from "react";
@@ -14,6 +14,7 @@ const AUTH_REDIRECT_VALUE = "redirect";
 const RETURN_TO_PARAM = "returnTo";
 const FROM_SIGNIN_QUERY = "from=signin";
 const TICKET_PATH_PREFIX = "/ticketing-system/tickets/";
+const OAUTH_STATE_PREFIX = "tk:";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
@@ -27,18 +28,40 @@ function TicketingSystemPageInner() {
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
   const [isInIframe, setIsInIframe] = useState(false);
   const authRedirectStarted = useRef(false);
+  /** When Supabase redirects to list with hash (no returnTo in URL), we get returnTo from state in hash */
+  const returnToFromHashRef = useRef<string | null>(null);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
   }, []);
 
-  useEffect(() => {
+  // Read hash immediately (useLayoutEffect runs before paint) so we get state before Supabase may clear it.
+  useLayoutEffect(() => {
     if (typeof window === "undefined") return;
+    const hash = window.location.hash;
     console.log("[List page] Loaded:", {
       href: window.location.href,
       search: window.location.search,
-      hasHash: !!window.location.hash,
+      hasHash: !!hash,
     });
+    if (hash) {
+      const params = new URLSearchParams(hash.slice(1));
+      const hashKeys = Array.from(params.keys());
+      console.log("[List page] Hash params keys:", hashKeys);
+      const state = params.get("state");
+      if (state?.startsWith(OAUTH_STATE_PREFIX)) {
+        try {
+          const decoded = decodeURIComponent(state.slice(OAUTH_STATE_PREFIX.length));
+          const path = decoded.startsWith("/") ? decoded : `/${decoded}`;
+          if (path.startsWith(TICKET_PATH_PREFIX)) {
+            returnToFromHashRef.current = path;
+            console.log("[List page] Found returnTo in hash state:", path);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
   }, []);
 
   // Get current user + subscribe to changes
@@ -60,7 +83,7 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened with ?auth=redirect (and optional ?returnTo=): send user to Microsoft sign-in. If returnTo is a ticket, use /auth/callback?next= so we land on that ticket after login (avoids hash/sessionStorage issues).
+  // When opened with ?auth=redirect (and optional ?returnTo=): send user to Microsoft sign-in. Use list URL for redirectTo (so Supabase allowlist works) and pass returnTo in state so we get it back in the hash.
   useEffect(() => {
     if (
       !isAuthRedirect ||
@@ -73,33 +96,39 @@ function TicketingSystemPageInner() {
     const pathForReturn = returnTo
       ? (returnTo.startsWith("/") ? returnTo : `/${returnTo}`)
       : "";
-    const useCallbackWithNext =
-      pathForReturn && pathForReturn.startsWith(TICKET_PATH_PREFIX);
-    const redirectTo = useCallbackWithNext
-      ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(pathForReturn)}`
-      : `${window.location.origin}/ticketing-system`;
-    console.log("[List OAuth] Starting sign-in with redirect:", {
+    const redirectTo = `${window.location.origin}/ticketing-system`;
+    const options: { redirectTo: string; queryParams: { prompt: string }; state?: string } = {
+      redirectTo,
+      queryParams: { prompt: "select_account" },
+    };
+    if (pathForReturn && pathForReturn.startsWith(TICKET_PATH_PREFIX)) {
+      options.state = OAUTH_STATE_PREFIX + encodeURIComponent(pathForReturn);
+    }
+    console.log("[List OAuth] Starting sign-in:", {
       returnTo,
       pathForReturn,
-      useCallbackWithNext,
       redirectTo,
+      hasState: !!options.state,
     });
     supabase.auth.signInWithOAuth({
       provider: "azure",
-      options: {
-        redirectTo,
-        queryParams: { prompt: "select_account" },
-      },
+      options,
     });
   }, [isAuthRedirect, userEmail, returnTo]);
 
-  // Fallback: if user landed on list with returnTo in URL (e.g. old link), redirect to that ticket.
+  // After login: redirect to ticket if we have returnTo in URL or from hash state (Supabase sends us back to list with hash, no query).
   useEffect(() => {
-    if (!userEmail || !returnTo || typeof window === "undefined") return;
-    const path = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
+    if (!userEmail || typeof window === "undefined") return;
+    const fromHash = returnToFromHashRef.current;
+    if (fromHash) returnToFromHashRef.current = null;
+    const pathRaw = returnTo || fromHash;
+    if (!pathRaw) return;
+    const path = pathRaw.startsWith("/") ? pathRaw : `/${pathRaw}`;
     if (!path.startsWith(TICKET_PATH_PREFIX)) return;
     const separator = path.includes("?") ? "&" : "?";
-    router.replace(`${path}${separator}${FROM_SIGNIN_QUERY}`);
+    const target = `${path}${separator}${FROM_SIGNIN_QUERY}`;
+    console.log("[List page] Redirecting to ticket:", target);
+    router.replace(target);
   }, [userEmail, returnTo, router]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
