@@ -7,7 +7,6 @@ import Comments from "@/components/Comments";
 import CommentForm from "@/components/CommentForm";
 import StatusBadge from "@/components/StatusBadge";
 import { IT_EMAILS } from "@/lib/constants";
-import { setReturnToCookie } from "@/lib/authReturnTo";
 
 // Type for ticket record
 type Ticket = {
@@ -255,10 +254,12 @@ export default function TicketPage() {
 
   const handleSignIn = () => {
     if (typeof window === "undefined") return;
-    const path = window.location.pathname;
-    setReturnToCookie(path);
-    const url = `/ticketing-system?auth=redirect&returnTo=${encodeURIComponent(path)}`;
-    window.location.href = url;
+    try {
+      sessionStorage.setItem("ticketingHighlightId", id);
+    } catch {
+      // ignore
+    }
+    window.location.href = "/ticketing-system?auth=redirect";
   };
 
   return (

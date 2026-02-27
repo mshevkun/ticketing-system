@@ -4,49 +4,44 @@ import TicketForm from "@/components/TicketForm";
 import TicketList from "@/components/TicketList";
 import { supabase } from "@/lib/supabaseClient";
 import { IT_EMAILS } from "@/lib/constants";
-import { getAndClearReturnToCookie, setReturnToCookie } from "@/lib/authReturnTo";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
 const AUTH_REDIRECT_VALUE = "redirect";
-const RETURN_TO_PARAM = "returnTo";
-const FROM_SIGNIN_QUERY = "from=signin";
-const TICKET_PATH_PREFIX = "/ticketing-system/tickets/";
+const HIGHLIGHT_ID_KEY = "ticketingHighlightId";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
   const isAuthRedirect =
     searchParams.get(AUTH_REDIRECT_PARAM) === AUTH_REDIRECT_VALUE;
-  const returnTo = searchParams.get(RETURN_TO_PARAM);
 
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [isInIframe, setIsInIframe] = useState(false);
   const authRedirectStarted = useRef(false);
-  const returnToFromCookieRef = useRef<string | null>(null);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
   }, []);
 
-  // When we land with hash (post-OAuth), read return path from cookie (Supabase does not return our state in hash).
-  useLayoutEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash;
-    if (hash) {
-      const fromCookie = getAndClearReturnToCookie();
-      if (fromCookie) {
-        const path = fromCookie.startsWith("/") ? fromCookie : `/${fromCookie}`;
-        if (path.startsWith(TICKET_PATH_PREFIX)) {
-          returnToFromCookieRef.current = path;
-        }
+  // Read highlight ticket ID (set from ticket page when user clicked Sign in) so we show red dot on that ticket for quick navigation.
+  useEffect(() => {
+    if (typeof window === "undefined" || !userEmail) return;
+    try {
+      const id = sessionStorage.getItem(HIGHLIGHT_ID_KEY);
+      if (id) {
+        sessionStorage.removeItem(HIGHLIGHT_ID_KEY);
+        setHighlightId(id);
       }
+    } catch {
+      // ignore
     }
-  }, []);
+  }, [userEmail]);
 
   // Get current user + subscribe to changes
   useEffect(() => {
@@ -67,7 +62,7 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened with ?auth=redirect (and optional ?returnTo=): store returnTo in a cookie (survives OAuth; Supabase does not return state in hash), then send user to Microsoft sign-in.
+  // When opened with ?auth=redirect: go straight to Microsoft sign-in.
   useEffect(() => {
     if (
       !isAuthRedirect ||
@@ -77,12 +72,6 @@ function TicketingSystemPageInner() {
     )
       return;
     authRedirectStarted.current = true;
-    const pathForReturn = returnTo
-      ? (returnTo.startsWith("/") ? returnTo : `/${returnTo}`)
-      : "";
-    if (pathForReturn && pathForReturn.startsWith(TICKET_PATH_PREFIX)) {
-      setReturnToCookie(pathForReturn);
-    }
     const redirectTo = `${window.location.origin}/ticketing-system`;
     supabase.auth.signInWithOAuth({
       provider: "azure",
@@ -91,21 +80,7 @@ function TicketingSystemPageInner() {
         queryParams: { prompt: "select_account" },
       },
     });
-  }, [isAuthRedirect, userEmail, returnTo]);
-
-  // After login: redirect to ticket if we have returnTo in URL or from cookie (set before OAuth). Use full page navigation so hash/SPA state doesn't block it.
-  useEffect(() => {
-    if (!userEmail || typeof window === "undefined") return;
-    const fromCookie = returnToFromCookieRef.current;
-    if (fromCookie) returnToFromCookieRef.current = null;
-    const pathRaw = returnTo || fromCookie;
-    if (!pathRaw) return;
-    const path = pathRaw.startsWith("/") ? pathRaw : `/${pathRaw}`;
-    if (!path.startsWith(TICKET_PATH_PREFIX)) return;
-    const separator = path.includes("?") ? "&" : "?";
-    const target = `${path}${separator}${FROM_SIGNIN_QUERY}`;
-    window.location.replace(target);
-  }, [userEmail, returnTo]);
+  }, [isAuthRedirect, userEmail]);
 
   // Sign in with Microsoft. In Teams (iframe) we open the app in browser with ?auth=redirect so it goes straight to Microsoft login.
   const loginWithMicrosoft = async () => {
@@ -287,7 +262,7 @@ function TicketingSystemPageInner() {
             {activeTab === "create" && <TicketForm />}
             {activeTab === "tickets" && (
               <TicketList
-                unreadIds={unreadIds}
+                unreadIds={[...new Set([...unreadIds, ...(highlightId ? [highlightId] : [])])]}
                 onUnreadRefetch={fetchUnreadIds}
               />
             )}
