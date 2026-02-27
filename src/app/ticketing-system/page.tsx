@@ -11,7 +11,6 @@ import { Suspense } from "react";
 
 const AUTH_REDIRECT_PARAM = "auth";
 const AUTH_REDIRECT_VALUE = "redirect";
-const HIGHLIGHT_ID_KEY = "ticketingHighlightId";
 
 function TicketingSystemPageInner() {
   const searchParams = useSearchParams();
@@ -21,27 +20,12 @@ function TicketingSystemPageInner() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"create" | "tickets">("tickets");
   const [unreadIds, setUnreadIds] = useState<string[]>([]);
-  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [isInIframe, setIsInIframe] = useState(false);
   const authRedirectStarted = useRef(false);
 
   useEffect(() => {
     setIsInIframe(typeof window !== "undefined" && window.self !== window.top);
   }, []);
-
-  // Read highlight ticket ID (set from ticket page when user clicked Sign in) so we show red dot on that ticket for quick navigation.
-  useEffect(() => {
-    if (typeof window === "undefined" || !userEmail) return;
-    try {
-      const id = sessionStorage.getItem(HIGHLIGHT_ID_KEY);
-      if (id) {
-        sessionStorage.removeItem(HIGHLIGHT_ID_KEY);
-        setHighlightId(id);
-      }
-    } catch {
-      // ignore
-    }
-  }, [userEmail]);
 
   // Get current user + subscribe to changes
   useEffect(() => {
@@ -62,7 +46,7 @@ function TicketingSystemPageInner() {
     };
   }, []);
 
-  // When opened with ?auth=redirect: go straight to Microsoft sign-in.
+  // When opened from Teams with ?auth=redirect: go straight to Microsoft sign-in (no login button screen).
   useEffect(() => {
     if (
       !isAuthRedirect ||
@@ -262,7 +246,7 @@ function TicketingSystemPageInner() {
             {activeTab === "create" && <TicketForm />}
             {activeTab === "tickets" && (
               <TicketList
-                unreadIds={[...new Set([...unreadIds, ...(highlightId ? [highlightId] : [])])]}
+                unreadIds={unreadIds}
                 onUnreadRefetch={fetchUnreadIds}
               />
             )}

@@ -253,13 +253,16 @@ export default function TicketPage() {
   };
 
   const handleSignIn = () => {
-    if (typeof window === "undefined") return;
-    try {
-      sessionStorage.setItem("ticketingHighlightId", id);
-    } catch {
-      // ignore
-    }
-    window.location.href = "/ticketing-system?auth=redirect";
+    const redirectTo =
+      typeof window !== "undefined" ? window.location.href : "";
+    if (!redirectTo) return;
+    supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo,
+        queryParams: { prompt: "select_account" },
+      },
+    });
   };
 
   return (
