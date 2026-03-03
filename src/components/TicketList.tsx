@@ -60,7 +60,23 @@ export default function TicketList({
       console.error("Error fetching tickets:", error.message);
       setTickets([]);
     } else {
-      setTickets(data || []);
+      const list = data || [];
+      const statusOrder: Record<string, number> = {
+        new: 0,
+        in_progress: 1,
+        resolved: 2,
+        closed: 3,
+      };
+      const sorted = [...list].sort((a, b) => {
+        const aOrd = statusOrder[a.status] ?? 4;
+        const bOrd = statusOrder[b.status] ?? 4;
+        if (aOrd !== bOrd) return aOrd - bOrd;
+        return (
+          new Date(b.created_at || 0).getTime() -
+          new Date(a.created_at || 0).getTime()
+        );
+      });
+      setTickets(sorted);
     }
 
     setLoading(false);
