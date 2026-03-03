@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import StatusBadge from "./StatusBadge";
 import { IT_EMAILS } from "@/lib/constants";
+
+const STATUS_ORDER: Record<string, number> = {
+  new: 0,
+  in_progress: 1,
+  resolved: 2,
+  closed: 3,
+};
 
 type Ticket = {
   id: string;
@@ -32,6 +39,7 @@ export default function TicketList({
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"date" | "status">("status");
 
   useEffect(() => {
     const getUser = async () => {
@@ -83,6 +91,26 @@ export default function TicketList({
     };
   }, [fetchTickets, onUnreadRefetch]);
 
+  const sortedTickets = useMemo(() => {
+    const list = [...tickets];
+    if (sortBy === "date") {
+      return list.sort(
+        (a, b) =>
+          new Date(b.created_at || 0).getTime() -
+          new Date(a.created_at || 0).getTime()
+      );
+    }
+    return list.sort((a, b) => {
+      const aOrd = STATUS_ORDER[a.status] ?? 4;
+      const bOrd = STATUS_ORDER[b.status] ?? 4;
+      if (aOrd !== bOrd) return aOrd - bOrd;
+      return (
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime()
+      );
+    });
+  }, [tickets, sortBy]);
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-4">
@@ -114,10 +142,41 @@ export default function TicketList({
 
   return (
     <div className="max-w-4xl mx-auto p-0 sm:p-4">
-      <h2 className="text-xl sm:text-2xl font-semibold mb-1 px-4 sm:px-0">
-        {IT_EMAILS.includes(userEmail || "") ? "All Tickets" : "My Tickets"}
-      </h2>
-      <p className="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6 px-4 sm:px-0">Track and manage your IT support requests</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-6 px-4 sm:px-0">
+        <div>
+          <h2 className="text-xl sm:text-2xl font-semibold">
+            {IT_EMAILS.includes(userEmail || "") ? "All Tickets" : "My Tickets"}
+          </h2>
+          <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Track and manage your IT support requests</p>
+        </div>
+        {tickets.length > 1 && (
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="text-xs text-gray-400">Sort by</span>
+            <button
+              type="button"
+              onClick={() => setSortBy("date")}
+              className={`px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer ${
+                sortBy === "date"
+                  ? "bg-blue-600 text-white border-blue-600 font-medium"
+                  : "text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Date
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortBy("status")}
+              className={`px-2.5 py-1 text-xs rounded border transition-colors cursor-pointer ${
+                sortBy === "status"
+                  ? "bg-blue-600 text-white border-blue-600 font-medium"
+                  : "text-gray-500 border-gray-200 hover:bg-gray-50"
+              }`}
+            >
+              Status
+            </button>
+          </div>
+        )}
+      </div>
 
       {tickets.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg p-8 sm:p-12 text-center shadow-sm mx-4 sm:mx-0">
@@ -138,8 +197,9 @@ export default function TicketList({
           </p>
         </div>
       ) : (
-        <ul className="space-y-2 sm:space-y-3 px-4 sm:px-0">
-          {tickets.map((t) => (
+        <>
+          <ul className="space-y-2 sm:space-y-3 px-4 sm:px-0">
+          {sortedTickets.map((t) => (
             <li key={t.id}>
               <Link
                 href={`/ticketing-system/tickets/${t.id}`}
@@ -179,7 +239,8 @@ export default function TicketList({
               </Link>
             </li>
           ))}
-        </ul>
+          </ul>
+        </>
       )}
     </div>
   );
