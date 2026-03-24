@@ -42,7 +42,7 @@ export async function sendEmail({
   }
 
   try {
-    const { data, error } = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: FROM_EMAIL,
       to,
       subject,
