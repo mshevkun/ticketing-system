@@ -1,0 +1,144 @@
+import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { supabaseServer } from "@/lib/supabaseServer";
+import { sendEmailsWithRateLimit } from "@/lib/email";
+import { MAINTENANCE_EMAILS, getMaintenanceTicketViewUrl } from "@/lib/constants";
+
+export const runtime = "nodejs";
+
+const BUCKET = "attachments";
+
+// POST /api/comments
+// Create a comment (message) with optional file attachments
+export async function POST(req: Request) {
+  try {
+    const contentType = req.headers.get("content-type") ?? "";
+    if (!contentType.includes("multipart/form-data")) {
+      return NextResponse.json(
+        { error: "Content-Type must be multipart/form-data" },
+        { status: 400 }
+      );
+    }
+
+    const form = await req.formData();
+    const ticketId = String(form.get("ticket_id") ?? "").trim();
+    const authorEmail = String(form.get("author_email") ?? "").trim();
+    const content = String(form.get("content") ?? "").trim();
+
+    if (!ticketId || !authorEmail || !content) {
+      return NextResponse.json(
+        { error: "ticket_id, author_email, and content are required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify ticket exists and get requester/title for notifications
+    const { data: ticket, error: ticketError } = await supabaseServer
+      .from("maintenance_tickets")
+      .select("id, requester_email, title")
+      .eq("id", ticketId)
+      .single();
+
+    if (ticketError || !ticket) {
+      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    }
+
+    // Insert comment with empty attachments first
+    const { data: comment, error: insertError } = await supabaseServer
+      .from("maintenance_comments")
+      .insert({
+        ticket_id: ticketId,
+        author_email: authorEmail,
+        content,
+        attachments: [],
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !comment) {
+      return NextResponse.json(
+        { error: "Failed to create comment", details: insertError?.message },
+        { status: 500 }
+      );
+    }
+
+    const files = form.getAll("attachments") as File[];
+    const validFiles = files.filter((f) => f && f instanceof File && f.size > 0);
+    const uploadedPaths: string[] = [];
+
+    for (const file of validFiles) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+      const key = `comments/${comment.id}/${Date.now()}_${randomUUID()}.${ext}`;
+      const { data: up, error } = await supabaseServer.storage
+        .from(BUCKET)
+        .upload(key, buffer, {
+          contentType: file.type || "application/octet-stream",
+          upsert: false,
+        });
+      if (error) continue;
+      uploadedPaths.push(up.path);
+    }
+
+    if (uploadedPaths.length > 0) {
+      await supabaseServer
+        .from("maintenance_comments")
+        .update({ attachments: uploadedPaths })
+        .eq("id", comment.id);
+    }
+
+    // Notifications: maintenance replied -> email requester + all maintenance (except author); requester replied -> email all maintenance
+    const isMaintenance = MAINTENANCE_EMAILS.includes(authorEmail);
+    const contentPreview =
+      content.length > 200 ? content.slice(0, 200) + "…" : content;
+
+    const emailItems: Array<{ to: string; subject: string; html: string }> = [];
+    const ticketUrl = getMaintenanceTicketViewUrl(ticketId);
+
+    if (isMaintenance) {
+      const requesterHtml = `
+        <p>Hello,</p>
+        <p>Maintenance has replied to your request <strong>${ticket.title}</strong>.</p>
+        <p><strong>Message:</strong></p>
+        <p>${contentPreview.replace(/\n/g, "<br>")}</p>
+        <p><a href="${ticketUrl}">View the full conversation and reply</a></p>
+        <p>— Maintenance Ticketing System</p>
+      `;
+      emailItems.push({
+        to: ticket.requester_email,
+        subject: `New reply on your maintenance request: ${ticket.title}`,
+        html: requesterHtml,
+      });
+    }
+
+    const itHtml = `
+      <p>A new message was added to maintenance request <strong>${ticket.title}</strong>.</p>
+      <p><strong>From:</strong> ${authorEmail}</p>
+      <p><strong>Message:</strong></p>
+      <p>${contentPreview.replace(/\n/g, "<br>")}</p>
+      <p><a href="${ticketUrl}">View and respond to this request</a></p>
+      <p>— Maintenance Ticketing System</p>
+    `;
+    for (const maintenanceEmail of MAINTENANCE_EMAILS) {
+      if (maintenanceEmail === authorEmail) continue;
+      emailItems.push({
+        to: maintenanceEmail,
+        subject: `New message on maintenance request: ${ticket.title}`,
+        html: itHtml,
+      });
+    }
+
+    await sendEmailsWithRateLimit(emailItems);
+
+    return NextResponse.json(
+      { ok: true, comment_id: comment.id, attachments: uploadedPaths.length },
+      { status: 201 }
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json(
+      { error: "Failed to create comment", details: msg },
+      { status: 500 }
+    );
+  }
+}
