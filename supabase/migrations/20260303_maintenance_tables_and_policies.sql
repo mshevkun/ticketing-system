@@ -47,7 +47,7 @@ language sql
 stable
 as $$
   select lower(coalesce(user_email, '')) in (
-    'cmansilla@people-usa.org',
+    'syoung@people-usa.org',
     'mshevkun@people-usa.org'
   );
 $$;

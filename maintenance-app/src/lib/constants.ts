@@ -3,7 +3,7 @@
  * Update this list to add or remove maintenance staff.
  */
 export const MAINTENANCE_EMAILS: readonly string[] = [
-  "cmansilla@people-usa.org",
+  "syoung@people-usa.org",
   "mshevkun@people-usa.org",
 ];
 
