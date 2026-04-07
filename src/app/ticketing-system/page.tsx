@@ -119,8 +119,8 @@ function TicketingSystemPageInner() {
           <div className="flex-1 min-w-0">
             <h1 className="text-base sm:text-xl md:text-2xl font-bold text-gray-900 flex items-center gap-1.5 sm:gap-2">
               <Image
-                src="/icons/people-usa-icon.png"
-                alt="People USA"
+                src="/icons/it-icon.png"
+                alt="IT System"
                 width={24}
                 height={24}
                 className="flex-shrink-0 sm:w-8 sm:h-8"
