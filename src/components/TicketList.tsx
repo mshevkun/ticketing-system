@@ -182,8 +182,8 @@ export default function TicketList({
         <div className="bg-white border border-gray-200 rounded-lg p-8 sm:p-12 text-center shadow-sm mx-4 sm:mx-0">
           <div className="flex justify-center mb-4">
             <Image 
-              src="/icons/people-usa-icon.png" 
-              alt="People USA" 
+              src="/icons/it-icon.png" 
+              alt="IT" 
               width={64} 
               height={64}
               className="w-12 h-12 sm:w-16 sm:h-16"

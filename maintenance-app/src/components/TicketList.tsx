@@ -182,7 +182,7 @@ export default function TicketList({
         <div className="bg-white border border-gray-200 rounded-lg p-8 sm:p-12 text-center shadow-sm mx-4 sm:mx-0">
           <div className="flex justify-center mb-4">
             <Image 
-              src="/icons/maintenance-icon.svg" 
+              src="/icons/maintenance-icon.png" 
               alt="Maintenance" 
               width={64} 
               height={64}
