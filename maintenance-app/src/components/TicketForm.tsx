@@ -20,7 +20,7 @@ const FormSchema = z.object({
   title: z.string().min(3, "Title is required"),
   description: z.string().min(5, "Description is required"),
   category: z.enum(CATEGORY_OPTIONS),
-  department_program: z.string().min(1, "Department/Program is required"),
+  department_program: z.string().min(1, "Department/Location is required"),
   supervisor: z.string().min(1, "Supervisor is required"),
   requester_email: z.string().email("Valid email is required"),
 });
@@ -257,7 +257,7 @@ export default function TicketForm() {
             htmlFor="department_program"
             className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
           >
-            Department / Program *
+            Department / Location *
           </label>
           <input
             id="department_program"
@@ -266,7 +266,7 @@ export default function TicketForm() {
                 ? "border-red-300 focus:ring-red-500"
                 : "border-gray-300"
             }`}
-            placeholder="e.g., HR, Finance, Program Name"
+            placeholder="e.g., HR, Building A, site or room"
             {...register("department_program")}
           />
           {errors.department_program && (
@@ -342,7 +342,10 @@ export default function TicketForm() {
             accept="image/*,.pdf,.doc,.docx,.txt"
           />
           <p className="mt-1.5 text-xs text-gray-500">
-            You can attach multiple files (screenshots, error messages, etc.)
+            <span className="font-medium text-gray-700">
+              Photos of the issue are recommended.
+            </span>{" "}
+            You can attach multiple images, PDFs, or documents.
           </p>
 
           {/* Selected files preview */}

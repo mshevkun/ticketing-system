@@ -447,7 +447,7 @@ export default function TicketPage() {
           </div>
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase mb-1">
-              Department / Program
+              Department / Location
             </p>
             <p className="text-sm text-gray-900 flex items-center gap-1">
               🏢 {ticket.department_program?.trim() || "—"}
