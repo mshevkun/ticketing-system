@@ -342,7 +342,7 @@ export default function TicketForm() {
             accept="image/*,.pdf,.doc,.docx,.txt"
           />
           <p className="mt-1.5 text-xs text-gray-500">
-            <span className="font-medium text-gray-700">
+            <span className="font-bold text-gray-800">
               Photos of the issue are recommended.
             </span>{" "}
             You can attach multiple images, PDFs, or documents.
