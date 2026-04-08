@@ -83,7 +83,7 @@ const TicketSchema = z.object({
   title: z.string().min(3, "Title is required (min 3)"),
   description: z.string().min(5, "Description is required (min 5)"),
   category: z.enum(CATEGORY_OPTIONS),
-  department_program: z.string().min(1, "Department/Program is required"),
+  department_program: z.string().min(1, "Department/Location is required"),
   supervisor: z.string().min(1, "Supervisor is required"),
   requester_email: z.string().email("Valid email is required"),
 });
