@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabaseClient";
+import { EQUIPMENT_PROGRAM_GROUPS, addEquipmentIssues } from "@/lib/equipment";
 
 // Category options for dropdown (stored as-is in DB)
 const CATEGORY_OPTIONS = [
@@ -16,14 +17,21 @@ const CATEGORY_OPTIONS = [
   "Other",
 ] as const;
 
-const FormSchema = z.object({
-  title: z.string().min(3, "Title is required"),
-  description: z.string().min(5, "Description is required"),
-  category: z.enum(CATEGORY_OPTIONS),
-  department_program: z.string().min(1, "Department/Program is required"),
-  supervisor: z.string().min(1, "Supervisor is required"),
-  requester_email: z.string().email("Valid email is required"),
-});
+const FormSchema = z
+  .object({
+    title: z.string().min(3, "Title is required"),
+    description: z.string().min(5, "Description is required"),
+    category: z.enum(CATEGORY_OPTIONS),
+    department_program: z.string().min(1, "Department/Program is required"),
+    supervisor: z.string().min(1, "Supervisor is required"),
+    requester_email: z.string().email("Valid email is required"),
+    equipment_requested: z.string(),
+    equipment_owner_name: z.string().optional(),
+    equipment_item: z.string().optional(),
+    equipment_program: z.string().optional(),
+    equipment_budget: z.string().optional(),
+  })
+  .superRefine(addEquipmentIssues);
 type FormValues = z.infer<typeof FormSchema>;
 
 export default function TicketForm() {
@@ -38,6 +46,7 @@ export default function TicketForm() {
     formState: { errors },
     reset,
     setValue,
+    watch,
   } = useForm<FormValues>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -47,6 +56,11 @@ export default function TicketForm() {
       department_program: "",
       supervisor: "",
       requester_email: "",
+      equipment_requested: "",
+      equipment_owner_name: "",
+      equipment_item: "",
+      equipment_program: "",
+      equipment_budget: "",
     },
   });
 
@@ -61,6 +75,7 @@ export default function TicketForm() {
     getUser();
   }, [setValue]);
 
+  const equipmentRequested = watch("equipment_requested");
   const attachmentsRef = useRef<HTMLInputElement | null>(null);
 
   // Handle file selection
@@ -99,6 +114,16 @@ export default function TicketForm() {
       formData.append("department_program", values.department_program);
       formData.append("supervisor", values.supervisor);
       formData.append("requester_email", userEmail); // always use logged user email
+      formData.append("equipment_requested", values.equipment_requested);
+      if (values.equipment_requested === "yes") {
+        formData.append(
+          "equipment_owner_name",
+          values.equipment_owner_name ?? "",
+        );
+        formData.append("equipment_item", values.equipment_item ?? "");
+        formData.append("equipment_program", values.equipment_program ?? "");
+        formData.append("equipment_budget", values.equipment_budget ?? "");
+      }
 
       // Use selectedFiles state instead of input.files
       selectedFiles.forEach((file) => {
@@ -147,6 +172,11 @@ export default function TicketForm() {
         department_program: "",
         supervisor: "",
         requester_email: userEmail,
+        equipment_requested: "",
+        equipment_owner_name: "",
+        equipment_item: "",
+        equipment_program: "",
+        equipment_budget: "",
       });
       setSelectedFiles([]); // Clear selected files
       if (attachmentsRef.current) attachmentsRef.current.value = "";
@@ -299,6 +329,143 @@ export default function TicketForm() {
             </p>
           )}
         </div>
+
+        <fieldset className="space-y-3">
+          <legend className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+            Are you requesting new equipment? *
+          </legend>
+          <p className="text-xs text-gray-500 -mt-1">
+            Laptop, mouse, keyboard, phone, or anything else.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+              <input
+                type="radio"
+                value="no"
+                className="cursor-pointer"
+                {...register("equipment_requested")}
+              />
+              No
+            </label>
+            <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+              <input
+                type="radio"
+                value="yes"
+                className="cursor-pointer"
+                {...register("equipment_requested")}
+              />
+              Yes
+            </label>
+          </div>
+          {errors.equipment_requested && (
+            <p className="text-sm text-red-600 flex items-center gap-1">
+              <span>⚠️</span> {errors.equipment_requested.message}
+            </p>
+          )}
+
+          {equipmentRequested === "yes" && (
+            <div className="space-y-4 border border-blue-200 bg-blue-50 rounded-lg p-3 sm:p-4">
+              <div>
+                <label
+                  htmlFor="equipment_owner_name"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+                >
+                  Who will own this equipment? *
+                </label>
+                <input
+                  id="equipment_owner_name"
+                  className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white ${
+                    errors.equipment_owner_name
+                      ? "border-red-300 focus:ring-red-500"
+                      : "border-gray-300"
+                  }`}
+                  placeholder="Full name of the person who will use it"
+                  {...register("equipment_owner_name")}
+                />
+                {errors.equipment_owner_name && (
+                  <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span> {errors.equipment_owner_name.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="equipment_item"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+                >
+                  What are you requesting? *
+                </label>
+                <input
+                  id="equipment_item"
+                  className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white ${
+                    errors.equipment_item
+                      ? "border-red-300 focus:ring-red-500"
+                      : "border-gray-300"
+                  }`}
+                  placeholder="e.g. laptop, mouse, keyboard, phone"
+                  {...register("equipment_item")}
+                />
+                {errors.equipment_item && (
+                  <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span> {errors.equipment_item.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="equipment_program"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+                >
+                  Which program is this for? *
+                </label>
+                <select
+                  id="equipment_program"
+                  className={`w-full border rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white cursor-pointer ${
+                    errors.equipment_program
+                      ? "border-red-300 focus:ring-red-500"
+                      : "border-gray-300"
+                  }`}
+                  {...register("equipment_program")}
+                >
+                  <option value="" disabled>
+                    Select a program
+                  </option>
+                  {EQUIPMENT_PROGRAM_GROUPS.map((group) => (
+                    <optgroup key={group.group} label={group.group}>
+                      {group.programs.map((program) => (
+                        <option key={program.value} value={program.value}>
+                          {program.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {errors.equipment_program && (
+                  <p className="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+                    <span>⚠️</span> {errors.equipment_program.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="equipment_budget"
+                  className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2"
+                >
+                  Budget{" "}
+                  <span className="text-gray-500 font-normal">(optional)</span>
+                </label>
+                <input
+                  id="equipment_budget"
+                  className="w-full border border-gray-300 rounded-lg px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors bg-white"
+                  {...register("equipment_budget")}
+                />
+              </div>
+            </div>
+          )}
+        </fieldset>
 
         {/* Work email shown but disabled */}
         <div>

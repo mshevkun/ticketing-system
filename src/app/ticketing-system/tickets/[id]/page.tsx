@@ -20,6 +20,11 @@ type Ticket = {
   requester_email: string;
   department_program?: string;
   supervisor?: string;
+  equipment_requested?: boolean;
+  equipment_owner_name?: string | null;
+  equipment_item?: string | null;
+  equipment_program?: string | null;
+  equipment_budget?: string | null;
   attachments: string[] | null;
 };
 
@@ -510,6 +515,52 @@ export default function TicketPage() {
               )}
             </div>
           </div>
+          {typeof ticket.equipment_requested === "boolean" && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                New equipment
+              </p>
+              <p className="text-sm text-gray-900">
+                {ticket.equipment_requested ? "Yes" : "No"}
+              </p>
+            </div>
+          )}
+          {ticket.equipment_requested && (
+            <>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                  Requested for
+                </p>
+                <p className="text-sm text-gray-900">
+                  {ticket.equipment_owner_name?.trim() || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                  Item
+                </p>
+                <p className="text-sm text-gray-900">
+                  {ticket.equipment_item?.trim() || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                  Program
+                </p>
+                <p className="text-sm text-gray-900">
+                  {ticket.equipment_program?.trim() || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                  Budget
+                </p>
+                <p className="text-sm text-gray-900">
+                  {ticket.equipment_budget?.trim() || "—"}
+                </p>
+              </div>
+            </>
+          )}
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase mb-1">
               Created By

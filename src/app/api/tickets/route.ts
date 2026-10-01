@@ -5,6 +5,11 @@ import { randomUUID } from "node:crypto";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { sendEmailsWithRateLimit } from "@/lib/email";
 import { IT_EMAILS, getTicketViewUrl } from "@/lib/constants";
+import {
+  addEquipmentIssues,
+  equipmentDbFields,
+  equipmentNoticeHtml,
+} from "@/lib/equipment";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -79,15 +84,35 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 // ---------- Validation ----------
-const TicketSchema = z.object({
-  title: z.string().min(3, "Title is required (min 3)"),
-  description: z.string().min(5, "Description is required (min 5)"),
-  category: z.enum(CATEGORY_OPTIONS),
-  department_program: z.string().min(1, "Department/Program is required"),
-  supervisor: z.string().min(1, "Supervisor is required"),
-  requester_email: z.string().email("Valid email is required"),
-});
+const TicketSchema = z
+  .object({
+    title: z.string().min(3, "Title is required (min 3)"),
+    description: z.string().min(5, "Description is required (min 5)"),
+    category: z.enum(CATEGORY_OPTIONS),
+    department_program: z.string().min(1, "Department/Program is required"),
+    supervisor: z.string().min(1, "Supervisor is required"),
+    requester_email: z.string().email("Valid email is required"),
+    equipment_requested: z.string(),
+    equipment_owner_name: z.string().optional(),
+    equipment_item: z.string().optional(),
+    equipment_program: z.string().optional(),
+    equipment_budget: z.string().optional(),
+  })
+  .superRefine(addEquipmentIssues);
 type TicketInput = z.infer<typeof TicketSchema>;
+
+function ticketInsert(values: TicketInput) {
+  return {
+    title: values.title,
+    description: values.description,
+    category: values.category,
+    department_program: values.department_program,
+    supervisor: values.supervisor,
+    requester_email: values.requester_email,
+    status: "new" as const,
+    ...equipmentDbFields(values),
+  };
+}
 
 // ---------- Handler ----------
 export async function POST(req: Request) {
@@ -120,6 +145,11 @@ export async function POST(req: Request) {
         department_program: String(form.get("department_program") ?? ""),
         supervisor: String(form.get("supervisor") ?? ""),
         requester_email: String(form.get("requester_email") ?? ""),
+        equipment_requested: String(form.get("equipment_requested") ?? ""),
+        equipment_owner_name: String(form.get("equipment_owner_name") ?? ""),
+        equipment_item: String(form.get("equipment_item") ?? ""),
+        equipment_program: String(form.get("equipment_program") ?? ""),
+        equipment_budget: String(form.get("equipment_budget") ?? ""),
       };
       const files = form.getAll("attachments") as File[];
 
@@ -133,7 +163,7 @@ export async function POST(req: Request) {
       // 1) Create ticket
       const ins = await supabaseServer
         .from("tickets")
-        .insert({ ...values, status: "new" })
+        .insert(ticketInsert(parsed.data))
         .select("*")
         .single();
 
@@ -195,9 +225,11 @@ export async function POST(req: Request) {
 
       // 4) Notifications: requester (confirmation) + IT staff (new ticket)
       const ticketUrl = getTicketViewUrl(ticket.id);
+      const equipmentHtml = equipmentNoticeHtml(equipmentDbFields(parsed.data));
       const requesterConfirmHtml = `
         <p>Hello,</p>
         <p>Your IT ticket <strong>${ticket.title}</strong> has been submitted successfully.</p>
+        ${equipmentHtml}
         <p>Our team will review it and get back to you.</p>
         <p><a href="${ticketUrl}">View your ticket</a></p>
         <p>— IT Support</p>
@@ -206,6 +238,7 @@ export async function POST(req: Request) {
         <p>A new ticket has been submitted.</p>
         <p><strong>Title:</strong> ${ticket.title}</p>
         <p><strong>From:</strong> ${ticket.requester_email}</p>
+        ${equipmentHtml}
         <p><a href="${ticketUrl}">View and respond to this ticket</a></p>
         <p>— IT Ticketing System</p>
       `;
@@ -251,7 +284,7 @@ export async function POST(req: Request) {
 
     const ins = await supabaseServer
       .from("tickets")
-      .insert(parsed.data)
+      .insert(ticketInsert(parsed.data))
       .select("id")
       .single();
     if (ins.error || !ins.data) {
@@ -262,9 +295,11 @@ export async function POST(req: Request) {
 
     const ticket = { id: ins.data.id, ...parsed.data };
     const ticketUrl = getTicketViewUrl(ticket.id);
+    const equipmentHtml = equipmentNoticeHtml(equipmentDbFields(parsed.data));
     const requesterConfirmHtml = `
       <p>Hello,</p>
       <p>Your IT ticket <strong>${ticket.title}</strong> has been submitted successfully.</p>
+      ${equipmentHtml}
       <p>Our team will review it and get back to you.</p>
       <p><a href="${ticketUrl}">View your ticket</a></p>
       <p>— IT Support</p>
@@ -273,6 +308,7 @@ export async function POST(req: Request) {
       <p>A new ticket has been submitted.</p>
       <p><strong>Title:</strong> ${ticket.title}</p>
       <p><strong>From:</strong> ${ticket.requester_email}</p>
+      ${equipmentHtml}
       <p><a href="${ticketUrl}">View and respond to this ticket</a></p>
       <p>— IT Ticketing System</p>
     `;

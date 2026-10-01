@@ -23,6 +23,7 @@ type Ticket = {
   requester_email: string;
   department_program?: string;
   supervisor?: string;
+  equipment_requested?: boolean;
   attachments: string[] | null;
   created_at?: string;
 };
@@ -222,6 +223,11 @@ export default function TicketList({
                   <span className="flex items-center gap-1">
                     <span className="font-medium">🏷️</span> {t.category}
                   </span>
+                  {t.equipment_requested && (
+                    <span className="flex items-center gap-1 text-blue-700">
+                      Equipment
+                    </span>
+                  )}
                   {t.attachments && t.attachments.length > 0 && (
                     <span className="flex items-center gap-1">
                       <span className="font-medium">📎</span> {t.attachments.length} file{t.attachments.length > 1 ? "s" : ""}
