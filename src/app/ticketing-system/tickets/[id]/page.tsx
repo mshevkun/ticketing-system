@@ -65,21 +65,9 @@ export default function TicketPage() {
   }, []);
 
   // Load ticket details from Supabase
-  const fetchTicket = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("tickets")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.error("Error fetching ticket:", error.message);
-      setTicket(null);
-    } else {
+  const showTicket = useCallback(
+    async (data: Ticket) => {
       setTicket(data);
-
-      // Fetch signed URLs for attachments if they exist
       if (data.attachments && data.attachments.length > 0) {
         try {
           const res = await fetch(`/api/tickets/${id}/attachments`);
@@ -91,10 +79,44 @@ export default function TicketPage() {
           console.error("Error fetching signed URLs:", err);
         }
       }
+    },
+    [id],
+  );
+
+  const fetchTicket = useCallback(async () => {
+    setLoading(true);
+    const { data: authData } = await supabase.auth.getUser();
+
+    if (authData.user) {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (!error && data) {
+        await showTicket(data);
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/tickets/${id}`);
+      if (!res.ok) {
+        setTicket(null);
+      } else {
+        const body = (await res.json()) as { ticket?: Ticket };
+        if (body.ticket) await showTicket(body.ticket);
+        else setTicket(null);
+      }
+    } catch (err) {
+      console.error("Error fetching ticket:", err);
+      setTicket(null);
     }
 
     setLoading(false);
-  }, [id]);
+  }, [id, showTicket]);
 
   useEffect(() => {
     if (id) fetchTicket();

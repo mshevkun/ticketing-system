@@ -28,19 +28,9 @@ export default function Comments({
 
   // Load comments from Supabase (include attachments)
   const fetchComments = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("comments")
-      .select("id, author_email, content, created_at, attachments")
-      .eq("ticket_id", ticketId)
-      .order("created_at", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching comments:", error.message);
-      setComments([]);
-    } else {
-      setComments(data || []);
-      // Fetch signed URLs for comments that have attachments
-      const withAttachments = (data || []).filter(
+    const loadRows = async (rows: Comment[]) => {
+      setComments(rows);
+      const withAttachments = rows.filter(
         (c) => c.attachments && Array.isArray(c.attachments) && c.attachments.length > 0
       );
       const urls: Record<string, Record<string, string>> = {};
@@ -58,6 +48,34 @@ export default function Comments({
         })
       );
       setSignedUrlsByComment(urls);
+    };
+
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData.user) {
+      const { data, error } = await supabase
+        .from("comments")
+        .select("id, author_email, content, created_at, attachments")
+        .eq("ticket_id", ticketId)
+        .order("created_at", { ascending: true });
+
+      if (!error) {
+        await loadRows(data || []);
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/comments`);
+      if (!res.ok) {
+        setComments([]);
+      } else {
+        const body = (await res.json()) as { comments?: Comment[] };
+        await loadRows(body.comments || []);
+      }
+    } catch (err) {
+      console.error("Error fetching comments:", err);
+      setComments([]);
     }
     setLoading(false);
   }, [ticketId]);

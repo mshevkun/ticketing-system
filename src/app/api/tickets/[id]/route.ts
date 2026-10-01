@@ -4,6 +4,39 @@ import { IT_EMAILS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
+// GET /api/tickets/[id]
+// One ticket by id. Used when the viewer has no Supabase session (email link).
+// Logged-in users still read through the browser client and RLS.
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: ticketId } = await params;
+    if (!ticketId) {
+      return NextResponse.json({ error: "Ticket ID is required" }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseServer
+      .from("tickets")
+      .select("*")
+      .eq("id", ticketId)
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ticket: data });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json(
+      { error: "Failed to load ticket", details: msg },
+      { status: 500 }
+    );
+  }
+}
+
 // PATCH /api/tickets/[id] — update description (only ticket creator)
 export async function PATCH(
   req: Request,
