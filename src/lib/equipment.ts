@@ -132,8 +132,8 @@ export function equipmentNoticeHtml(fields: EquipmentDbFields): string {
 
   return `<p><strong>New equipment:</strong> Yes</p>
     <ul>
-      <li><strong>Requested for:</strong> ${escapeHtml(fields.equipment_owner_name ?? "")}</li>
-      <li><strong>Item:</strong> ${escapeHtml(fields.equipment_item ?? "")}</li>
+      <li><strong>Who will own this equipment:</strong> ${escapeHtml(fields.equipment_owner_name ?? "")}</li>
+      <li><strong>What are you requesting:</strong> ${escapeHtml(fields.equipment_item ?? "")}</li>
       <li><strong>Program:</strong> ${escapeHtml(fields.equipment_program ?? "")}</li>
       ${budgetLine}
     </ul>`;

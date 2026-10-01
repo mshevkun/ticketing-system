@@ -537,51 +537,13 @@ export default function TicketPage() {
               )}
             </div>
           </div>
-          {typeof ticket.equipment_requested === "boolean" && (
+          {ticket.equipment_requested === false && (
             <div>
               <p className="text-xs font-medium text-gray-500 uppercase mb-1">
                 New equipment
               </p>
-              <p className="text-sm text-gray-900">
-                {ticket.equipment_requested ? "Yes" : "No"}
-              </p>
+              <p className="text-sm text-gray-900">No</p>
             </div>
-          )}
-          {ticket.equipment_requested && (
-            <>
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
-                  Requested for
-                </p>
-                <p className="text-sm text-gray-900">
-                  {ticket.equipment_owner_name?.trim() || "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
-                  Item
-                </p>
-                <p className="text-sm text-gray-900">
-                  {ticket.equipment_item?.trim() || "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
-                  Program
-                </p>
-                <p className="text-sm text-gray-900">
-                  {ticket.equipment_program?.trim() || "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase mb-1">
-                  Budget
-                </p>
-                <p className="text-sm text-gray-900">
-                  {ticket.equipment_budget?.trim() || "—"}
-                </p>
-              </div>
-            </>
           )}
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase mb-1">
@@ -605,6 +567,43 @@ export default function TicketPage() {
             </div>
           )}
         </div>
+
+        {ticket.equipment_requested && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-gray-200">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                Who will own this equipment
+              </p>
+              <p className="text-sm text-gray-900 break-words">
+                {ticket.equipment_owner_name?.trim() || "—"}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                What are you requesting
+              </p>
+              <p className="text-sm text-gray-900 break-words">
+                {ticket.equipment_item?.trim() || "—"}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                Program
+              </p>
+              <p className="text-sm text-gray-900 break-words">
+                {ticket.equipment_program?.trim() || "—"}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">
+                Budget
+              </p>
+              <p className="text-sm text-gray-900 break-words">
+                {ticket.equipment_budget?.trim() || "—"}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Attachments */}
         <div>
